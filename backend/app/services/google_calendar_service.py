@@ -1,3 +1,5 @@
+import uuid
+
 from google_auth_oauthlib.flow import Flow
 from google.oauth2.credentials import Credentials
 from google.auth.transport.requests import Request as GoogleRequest
@@ -79,9 +81,25 @@ class GoogleCalendarService:
                 "start": {"dateTime": start_time.isoformat(), "timeZone": "America/New_York"},
                 "end": {"dateTime": end_time.isoformat(), "timeZone": "America/New_York"},
                 "attendees": [{"email": e} for e in (attendee_emails or [])],
+                # Asking Google to auto-generate a Meet link for this event.
+                # requestId just needs to be unique per request so Google can
+                # dedupe retries - it's not stored or reused anywhere else.
+                "conferenceData": {
+                    "createRequest": {
+                        "requestId": f"meet-{uuid.uuid4()}",
+                        "conferenceSolutionKey": {"type": "hangoutsMeet"},
+                    }
+                },
             }
 
-            created_event = service.events().insert(calendarId="primary", body=event).execute()
+            # conferenceDataVersion=1 has to be passed as a request parameter
+            # (not inside body) - without it, Google silently ignores
+            # conferenceData and no Meet link gets created.
+            created_event = service.events().insert(
+                calendarId="primary",
+                body=event,
+                conferenceDataVersion=1,
+            ).execute()
             return created_event
         except Exception as e:
             print(f"Failed to create calendar event: {e}")

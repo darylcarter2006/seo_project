@@ -1,7 +1,10 @@
+from datetime import datetime
+
 from flask import Blueprint, redirect, request, session, jsonify
 
 from app import db
 from app.services.google_calendar_service import GoogleCalendarService
+from app.services.notion_service import NotionService
 from app.models.oauth_token import OAuthToken
 
 auth_bp = Blueprint("auth", __name__)
@@ -65,3 +68,41 @@ def get_valid_access_token(user_id, provider="google_calendar"):
     db.session.commit()
 
     return token.access_token
+
+
+@auth_bp.route("/notion/login")
+def notion_login():
+    auth_url = NotionService.get_authorization_url()
+    return redirect(auth_url)
+
+
+@auth_bp.route("/notion/callback")
+def notion_callback():
+    code = request.args.get("code")
+    if not code:
+        return jsonify({"error": "Notion did not return a code"}), 400
+
+    tokens = NotionService.exchange_code_for_tokens(code)
+
+    user_id = 1  # TODO: replace with real logged-in user once auth exists
+
+    # Notion access tokens don't expire, so refresh_token/expires_at stay
+    # None/far-future here - is_expired() on the model will just always
+    # report "not expired" for this provider since there's nothing to expire.
+    token = OAuthToken.query.filter_by(user_id=user_id, provider="notion").first()
+
+    if token:
+        token.access_token = tokens["access_token"]
+    else:
+        token = OAuthToken(
+            user_id=user_id,
+            provider="notion",
+            access_token=tokens["access_token"],
+            refresh_token=None,
+            expires_at=datetime.max,
+        )
+        db.session.add(token)
+
+    db.session.commit()
+
+    return jsonify({"status": "connected"})

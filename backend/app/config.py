@@ -37,6 +37,17 @@ class Config:
     # Always ask for the minimum scope you actually need.
     GOOGLE_SCOPES = ["https://www.googleapis.com/auth/calendar.events"]
 
+    # --- Notion OAuth ---
+    # Register an integration at https://www.notion.so/my-integrations
+    NOTION_CLIENT_ID = os.environ.get("NOTION_CLIENT_ID")
+    NOTION_CLIENT_SECRET = os.environ.get("NOTION_CLIENT_SECRET")
+    NOTION_REDIRECT_URI = os.environ.get(
+        "NOTION_REDIRECT_URI", "http://localhost:5000/api/auth/notion/callback"
+    )
+    # Notion requires this header on every API request (not just OAuth) and
+    # bumps it when their API has breaking changes - pin it explicitly.
+    NOTION_API_VERSION = "2022-06-28"
+
     # --- Database ---
     SQLALCHEMY_DATABASE_URI = os.environ.get(
         "DATABASE_URL", "sqlite:///study_partner.db"
