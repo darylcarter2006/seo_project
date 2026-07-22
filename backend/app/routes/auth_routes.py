@@ -1,4 +1,5 @@
 from datetime import datetime
+import secrets
 
 from flask import Blueprint, redirect, request, session, jsonify
 
@@ -72,12 +73,17 @@ def get_valid_access_token(user_id, provider="google_calendar"):
 
 @auth_bp.route("/notion/login")
 def notion_login():
-    auth_url = NotionService.get_authorization_url()
+    state = secrets.token_urlsafe(32)
+    session["notion_oauth_state"] = state
+    auth_url = NotionService.get_authorization_url(state)
     return redirect(auth_url)
 
 
 @auth_bp.route("/notion/callback")
 def notion_callback():
+    if request.args.get("state") != session.get("notion_oauth_state"):
+        return jsonify({"error": "Invalid state parameter"}), 400
+
     code = request.args.get("code")
     if not code:
         return jsonify({"error": "Notion did not return a code"}), 400

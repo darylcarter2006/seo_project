@@ -43,13 +43,14 @@ class NotionService:
         }
 
     @staticmethod
-    def get_authorization_url():
+    def get_authorization_url(state):
         """Builds the Notion "connect an integration" URL the browser gets redirected to."""
         params = {
             "client_id": Config.NOTION_CLIENT_ID,
             "response_type": "code",
             "owner": "user",
             "redirect_uri": Config.NOTION_REDIRECT_URI,
+            "state": state,
         }
         return f"{NotionService.AUTH_URL}?{urlencode(params)}"
 
