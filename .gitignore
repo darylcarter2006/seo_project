@@ -1,9 +1,7 @@
-<<<<<<< HEAD
 # --- Environment / secrets ---
 .env
 .env.local
 .env.*.local
-
 # --- Python ---
 __pycache__/
 *.py[cod]
@@ -14,41 +12,27 @@ venv/
 env/
 ENV/
 .venv/
-
 # --- Flask / DB ---
 instance/
 *.db
 *.sqlite
 *.sqlite3
-
 # --- Editor / IDE ---
 .vscode/
 .idea/
 *.swp
-
 # --- OS junk ---
 .DS_Store
 Thumbs.db
-
 # --- Logs ---
 *.log
-
 # --- Frontend (for later, React/Vite) ---
 node_modules/
 dist/
 build/
 .npm/
 npm-debug.log*
-
 # --- Testing / coverage ---
 .pytest_cache/
 htmlcov/
 .coverage
-=======
-__pycache__/
-*.pyc
-.pytest_cache/
-*.db
-.env
-instance/
->>>>>>> origin/feature/recommendation-engine
