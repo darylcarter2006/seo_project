@@ -69,7 +69,8 @@ def confirm_match():
     start_time_raw = data.get("start_time")
     end_time_raw = data.get("end_time")
 
-    if not all([user_id, partner_id, student_a, student_b, start_time_raw, end_time_raw]):
+    if (user_id is None or partner_id is None or student_a is None or student_b is None
+            or not start_time_raw or not end_time_raw):
         return jsonify({"error": "Missing required fields"}), 400
 
     if not isinstance(student_a, dict) or not isinstance(student_b, dict):

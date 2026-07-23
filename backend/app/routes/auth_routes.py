@@ -38,7 +38,8 @@ def google_callback():
 
     if token:
         token.access_token = tokens["access_token"]
-        token.refresh_token = tokens["refresh_token"]
+        if tokens.get("refresh_token"):
+            token.refresh_token = tokens["refresh_token"]
         token.expires_at = tokens["expires_at"]
     else:
         token = OAuthToken(

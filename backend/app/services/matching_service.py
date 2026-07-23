@@ -72,7 +72,7 @@ def calculate_compatibility_score(student_a, student_b):
     MAX_USEFUL_OVERLAP = 300
     availability_score = min(overlap_minutes / MAX_USEFUL_OVERLAP, 1.0)
 
-    return round(availability_score, 2)
+    return availability_score
 
 
 def find_best_matches(target_student, candidate_students, top_n=5):
