@@ -107,9 +107,10 @@ class NotionService:
                     "paragraph": {
                         "rich_text": [
                             {
+                                "type": "text",
                                 "text": {
                                     "content": f"Shared notes for {student_a_name} & {student_b_name}."
-                                }
+                                },
                             }
                         ]
                     },
