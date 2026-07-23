@@ -83,17 +83,25 @@ def confirm_match():
             "error": "student_a/student_b must include course_id and availability"
         }), 400
 
+    if (not isinstance(student_a.get("availability"), dict) or
+            not isinstance(student_b.get("availability"), dict)):
+        return jsonify({"error": "availability must be an object keyed by weekday"}), 400
+
     # Step 1: don't book anything unless the pair is actually compatible.
-    score = calculate_compatibility_score(student_a, student_b)
+    try:
+        score = calculate_compatibility_score(student_a, student_b)
+    except (KeyError, TypeError, ValueError):
+        return jsonify({"error": "Invalid student availability format"}), 400
+
     if score <= 0.0:
         return jsonify({
             "error": "students are not compatible (different course or no availability overlap)"
         }), 400
 
     try:
-        start_time = datetime.fromisoformat(start_time_raw)
-        end_time = datetime.fromisoformat(end_time_raw)
-    except ValueError:
+        start_time = datetime.fromisoformat(start_time_raw.replace("Z", "+00:00"))
+        end_time = datetime.fromisoformat(end_time_raw.replace("Z", "+00:00"))
+    except (ValueError, AttributeError):
         return jsonify({"error": "Invalid start_time/end_time (expected ISO-8601)"}), 400
 
     if end_time <= start_time:
