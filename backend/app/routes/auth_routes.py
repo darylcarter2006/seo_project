@@ -27,7 +27,10 @@ def google_callback():
     if request.args.get("state") != session.get("oauth_state"):
         return jsonify({"error": "Invalid state parameter"}), 400
 
-    tokens = GoogleCalendarService.exchange_code_for_tokens(code)
+    try:
+        tokens = GoogleCalendarService.exchange_code_for_tokens(code)
+    except Exception:
+        return jsonify({"error": "Google token exchange failed"}), 502
 
     user_id = 1  # TODO: replace with real logged-in user once auth exists
 
@@ -88,7 +91,10 @@ def notion_callback():
     if not code:
         return jsonify({"error": "Notion did not return a code"}), 400
 
-    tokens = NotionService.exchange_code_for_tokens(code)
+    try:
+        tokens = NotionService.exchange_code_for_tokens(code)
+    except Exception:
+        return jsonify({"error": "Notion token exchange failed"}), 502
 
     user_id = 1  # TODO: replace with real logged-in user once auth exists
 

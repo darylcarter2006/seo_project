@@ -72,6 +72,16 @@ def confirm_match():
     if not all([user_id, partner_id, student_a, student_b, start_time_raw, end_time_raw]):
         return jsonify({"error": "Missing required fields"}), 400
 
+    if not isinstance(student_a, dict) or not isinstance(student_b, dict):
+        return jsonify({"error": "student_a and student_b must be objects"}), 400
+
+    required_student_keys = {"course_id", "availability"}
+    if (not required_student_keys.issubset(student_a) or
+            not required_student_keys.issubset(student_b)):
+        return jsonify({
+            "error": "student_a/student_b must include course_id and availability"
+        }), 400
+
     # Step 1: don't book anything unless the pair is actually compatible.
     score = calculate_compatibility_score(student_a, student_b)
     if score <= 0.0:
@@ -79,8 +89,14 @@ def confirm_match():
             "error": "students are not compatible (different course or no availability overlap)"
         }), 400
 
-    start_time = datetime.fromisoformat(start_time_raw)
-    end_time = datetime.fromisoformat(end_time_raw)
+    try:
+        start_time = datetime.fromisoformat(start_time_raw)
+        end_time = datetime.fromisoformat(end_time_raw)
+    except ValueError:
+        return jsonify({"error": "Invalid start_time/end_time (expected ISO-8601)"}), 400
+
+    if end_time <= start_time:
+        return jsonify({"error": "end_time must be after start_time"}), 400
 
     # Step 2: try to book the Calendar event. create_calendar_event already
     # catches its own exceptions and returns None on failure, so we don't
