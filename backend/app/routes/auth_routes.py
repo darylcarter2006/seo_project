@@ -42,7 +42,7 @@ def google_callback():
             token.refresh_token = tokens["refresh_token"]
         token.expires_at = tokens["expires_at"]
     else:
-        token = OAuthToken( #type: ignore
+        token = OAuthToken(
             user_id=user_id,
             provider="google_calendar",
             access_token=tokens["access_token"],
@@ -107,7 +107,7 @@ def notion_callback():
     if token:
         token.access_token = tokens["access_token"]
     else:
-        token = OAuthToken( #type: ignore
+        token = OAuthToken(
             user_id=user_id,
             provider="notion",
             access_token=tokens["access_token"],
