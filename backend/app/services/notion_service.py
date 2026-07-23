@@ -96,9 +96,9 @@ class NotionService:
         body = {
             "parent": {"page_id": parent_page_id},
             "properties": {
-                "title": [
-                    {"text": {"content": f"Study Session: {topic}"}}
-                ]
+                "title": {
+                    "title": [{"type": "text", "text": {"content": f"Study Session: {topic}"}}],
+                }
             },
             "children": [
                 {
