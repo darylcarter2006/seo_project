@@ -75,10 +75,17 @@ class GoogleCalendarService:
             creds = Credentials(token=access_token)
             service = build("calendar", "v3", credentials=creds)
 
+            start = {"dateTime": start_time.isoformat()}
+            end = {"dateTime": end_time.isoformat()}
+            if start_time.tzinfo is None:
+                start["timeZone"] = "America/New_York"
+            if end_time.tzinfo is None:
+                end["timeZone"] = "America/New_York"
+
             event = {
                 "summary": summary,
-                "start": {"dateTime": start_time.isoformat(), "timeZone": "America/New_York"},
-                "end": {"dateTime": end_time.isoformat(), "timeZone": "America/New_York"},
+                "start": start,
+                "end": end,
                 "attendees": [{"email": e} for e in (attendee_emails or [])],
                 # Asking Google to auto-generate a Meet link for this event.
                 # requestId just needs to be unique per request so Google can

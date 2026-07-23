@@ -14,7 +14,10 @@ class OAuthToken(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     def is_expired(self):
-        return datetime.utcnow() >= self.expires_at
+        expires_at = self.expires_at
+        if expires_at.tzinfo is not None:
+            return datetime.now(expires_at.tzinfo) >= expires_at
+        return datetime.utcnow() >= expires_at
 
     def __repr__(self):
         return f"<OAuthToken user_id={self.user_id} provider={self.provider}>"
