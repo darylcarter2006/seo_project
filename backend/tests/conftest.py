@@ -6,7 +6,7 @@ this -- no need to import it manually in test_*.py files.
 
 import pytest
 from app import create_app
-from config import TestConfig
+from app.config import TestConfig
 from app.services.persistence import (
     create_user, add_availability, set_preference, enroll_user_in_course,
 )

@@ -1,14 +1,18 @@
 """
 Compatibility scoring between two students for the study-group matcher.
 
+Superseded by app/services/recommendation_engine.py, which is what
+match_routes.py now calls -- it works against the real User/Availability
+DB schema instead of raw dicts. Kept here (unused by routes) since its
+own tests still exercise it standalone; not deleted in this pass.
+
 Expected input shape for each student's availability:
     {
         "monday":    [("14:00", "16:00"), ("18:00", "20:00")],
         "tuesday":   [("10:00", "12:00")],
         ...
     }
-Times are 24-hour "HH:MM" strings. Adjust this shape once you confirm
-the real schema with Person 2.
+Times are 24-hour "HH:MM" strings.
 """
 
 from datetime import datetime
