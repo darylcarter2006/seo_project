@@ -16,22 +16,24 @@ How to run this app (from the project root):
 """
 
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
 
 from app.config import Config
-
-# db is created here but not attached to an app yet (that happens in
-# create_app via db.init_app(app)). This "lazy init" pattern is what lets
-# Person B (models) import `db` without needing the app to exist yet.
-db = SQLAlchemy()
+from app.database.db import db
+from app.database.migrations import init_db
 
 
-def create_app():
+def create_app(config_class=Config):
     app = Flask(__name__)
-    app.config.from_object(Config)
+    app.config.from_object(config_class)
 
     # Wire the database to this specific app instance.
     db.init_app(app)
+
+    # Import every model so it's registered on db.metadata before
+    # init_db()'s create_all() runs.
+    from app.models import OAuthToken, User, Course, Availability, Preference, Match  # noqa: F401
+
+    init_db(app)
 
     # --- Register routes ---
     # Each teammate's routes live in their own file under app/routes/.

@@ -3,7 +3,7 @@ import secrets
 
 from flask import Blueprint, redirect, request, session, jsonify
 
-from app import db
+from app.database.db import db
 from app.services.google_calendar_service import GoogleCalendarService
 from app.services.notion_service import NotionService
 from app.models.oauth_token import OAuthToken

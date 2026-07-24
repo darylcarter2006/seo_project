@@ -53,3 +53,8 @@ class Config:
         "DATABASE_URL", "sqlite:///study_partner.db"
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False  # silences an unnecessary warning
+
+
+class TestConfig(Config):
+    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
+    TESTING = True
