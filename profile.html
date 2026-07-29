@@ -25,7 +25,7 @@
 <div class="panel">
 <section class="screen active">
 <p class="panel-title">Create your profile</p>
-<p class="panel-sub">Tell us what you're studying and when you're free, so the backend's matching engine (course + availability overlap) can find your people.</p>
+<p class="panel-sub">Tell us what you're studying and when you're free, so we can find your people!</p>
 
 <p id="profile-required-note" class="note error" style="display:none;"><b>Profile required.</b> Create and save a profile below before you can access the Dashboard or Matches tabs.</p>
 
@@ -40,12 +40,12 @@
 </div>
 <div class="field">
 <label for="course_id">Course ID</label>
-<input type="number" id="course_id" placeholder="e.g. 101" required>
+<input type="number" id="course_id" placeholder="e.g. CHEM 101" required>
 </div>
 
 <div class="field">
 <label>Weekly availability</label>
-<p class="panel-sub">Check each day you're free and set a time range. This maps to the <code>student.availability</code> object the backend uses to score matches.</p>
+<p class="panel-sub">Check each day you're free and set a time range.</p>
 <div id="availability-builder">
 <div class="avail-row" data-day="monday">
 <label><input type="checkbox" class="avail-day"> Monday</label>
@@ -88,11 +88,10 @@
 
 <button type="button" class="btn-oauth" id="connect-google"><span class="dot" style="background:#4285F4"></span> Connect Google Calendar</button>
 <button type="button" class="btn-oauth" id="connect-notion"><span class="dot" style="background:#000000"></span> Connect Notion</button>
-<p class="panel-sub">These connect to the backend's OAuth routes (<code>/api/auth/google/login</code> and <code>/api/auth/notion/login</code>) so confirmed matches can book a Calendar event and a shared Notion notes page.</p>
 </section>
 </div>
 
-<footer class="credit">STUDY GROUP MATCHER — PROJECT 2 STATIC BUILD</footer>
+<footer class="credit">STUDY GROUP MATCHER</footer>
 </div>
 
 <script src="api.js"></script>
