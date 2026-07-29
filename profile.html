@@ -27,6 +27,8 @@
 <p class="panel-title">Create your profile</p>
 <p class="panel-sub">Tell us what you're studying and when you're free, so the backend's matching engine (course + availability overlap) can find your people.</p>
 
+<p id="profile-required-note" class="note error" style="display:none;"><b>Profile required.</b> Create and save a profile below before you can access the Dashboard or Matches tabs.</p>
+
 <form id="profile-form">
 <div class="field">
 <label for="name">Full name</label>
@@ -98,6 +100,12 @@
 (function () {
 var form = document.getElementById("profile-form");
 var savedNote = document.getElementById("profile-saved-note");
+var requiredNote = document.getElementById("profile-required-note");
+
+var params = new URLSearchParams(window.location.search);
+if (params.get("required") === "1" && requiredNote) {
+requiredNote.style.display = "block";
+}
 
 function dayRows() {
 return Array.prototype.slice.call(document.querySelectorAll(".avail-row"));
@@ -148,6 +156,7 @@ availability: buildAvailability()
 
 saveProfile(profile);
 savedNote.style.display = "block";
+if (requiredNote) requiredNote.style.display = "none";
 });
 
 document.getElementById("connect-google").addEventListener("click", function () {
