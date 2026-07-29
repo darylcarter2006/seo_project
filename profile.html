@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — Study Group Matcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead">
+    <h1>Study Group Matcher</h1>
+    <span class="term">Summer 2026</span>
+  </div>
+
+  <nav class="tabs" aria-label="Screens">
+    <a class="tab" href="profile.html" aria-current="page">1 · Profile</a>
+    <a class="tab" href="dashboard.html" >2 · Dashboard</a>
+    <a class="tab" href="matches.html" >3 · Matches</a>
+  </nav>
+
+  <div class="panel">
+    <section class="screen active">
+<p class="panel-title">Create your profile</p>
+      <p class="panel-sub">Tell us what you're studying so we can find your people.</p>
+
+      <form onsubmit="return false;">
+        <div class="field">
+          <label for="name">Full name</label>
+          <input type="text" id="name" placeholder="John Doe">
+        </div>
+        <div class="field">
+          <label for="email">Email address</label>
+          <input type="email" id="email" placeholder="you@school.edu">
+        </div>
+        <div class="field">
+          <label for="interests">Study interests / subjects</label>
+          <input type="text" id="interests" placeholder="Biology 101, Calculus II, Discrete Structures">
+        </div>
+        <button class="btn-primary" type="submit">Create profile</button>
+      </form>
+
+      <p class="link-row">Already have an account? <a href="#">Log in</a></p>
+
+      <div class="divider">or connect your accounts</div>
+
+      <button class="btn-oauth"><span class="dot" style="background:#4285F4"></span> Connect Google Calendar</button>
+      <button class="btn-oauth"><span class="dot" style="background:#EA4335"></span> Connect Google Classroom</button>
+    </section>
+  </div>
+
+  <footer class="credit">STUDY GROUP MATCHER — PROJECT 2 STATIC BUILD</footer>
+</div>
+</body>
+</html>

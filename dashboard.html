@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — Study Group Matcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+  <div class="masthead">
+    <h1>Study Group Matcher</h1>
+    <span class="term">Summer 2026</span>
+  </div>
+
+  <nav class="tabs" aria-label="Screens">
+    <a class="tab" href="profile.html" >1 · Profile</a>
+    <a class="tab" href="dashboard.html" aria-current="page">2 · Dashboard</a>
+    <a class="tab" href="matches.html" >3 · Matches</a>
+  </nav>
+
+  <div class="panel">
+    <section class="screen active">
+<p class="panel-title">Your groups</p>
+      <p class="panel-sub">Meeting times shown up front so you know before you click in.</p>
+
+      <div class="group-card bio">
+        <div class="group-info">
+          <p class="group-name">Biology 101 Study Group</p>
+          <p class="group-meta">4 members &nbsp;·&nbsp; Tues 6:00 PM</p>
+        </div>
+      </div>
+      <div class="group-card calc">
+        <div class="group-info">
+          <p class="group-name">Calculus II Group</p>
+          <p class="group-meta">6 members &nbsp;·&nbsp; Thurs 5:00 PM</p>
+        </div>
+      </div>
+      <div class="group-card hist">
+        <div class="group-info">
+          <p class="group-name">World History Seminar</p>
+          <p class="group-meta">3 members &nbsp;·&nbsp; Mon 4:00 PM</p>
+        </div>
+      </div>
+
+      <button class="btn-new-group">+ Create new group</button>
+
+      <p class="note"><b>Iteration note (v1 → v2):</b> v1 listed groups in a plain table. Testing showed users didn't scroll past 3 rows, so v2 switched to stacked cards with meeting time visible up front, and moved "Create new group" above the fold.</p>
+    </section>
+  </div>
+
+  <footer class="credit">STUDY GROUP MATCHER — PROJECT 2 STATIC BUILD</footer>
+</div>
+</body>
+</html>
