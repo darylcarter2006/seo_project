@@ -11,48 +11,163 @@
 </head>
 <body>
 <div class="wrap">
-  <div class="masthead">
-    <h1>Study Group Matcher</h1>
-    <span class="term">Summer 2026</span>
-  </div>
-
-  <nav class="tabs" aria-label="Screens">
-    <a class="tab" href="profile.html" aria-current="page">1 · Profile</a>
-    <a class="tab" href="dashboard.html" >2 · Dashboard</a>
-    <a class="tab" href="matches.html" >3 · Matches</a>
-  </nav>
-
-  <div class="panel">
-    <section class="screen active">
-<p class="panel-title">Create your profile</p>
-      <p class="panel-sub">Tell us what you're studying so we can find your people.</p>
-
-      <form onsubmit="return false;">
-        <div class="field">
-          <label for="name">Full name</label>
-          <input type="text" id="name" placeholder="John Doe">
-        </div>
-        <div class="field">
-          <label for="email">Email address</label>
-          <input type="email" id="email" placeholder="you@school.edu">
-        </div>
-        <div class="field">
-          <label for="interests">Study interests / subjects</label>
-          <input type="text" id="interests" placeholder="Biology 101, Calculus II, Discrete Structures">
-        </div>
-        <button class="btn-primary" type="submit">Create profile</button>
-      </form>
-
-      <p class="link-row">Already have an account? <a href="#">Log in</a></p>
-
-      <div class="divider">or connect your accounts</div>
-
-      <button class="btn-oauth"><span class="dot" style="background:#4285F4"></span> Connect Google Calendar</button>
-      <button class="btn-oauth"><span class="dot" style="background:#EA4335"></span> Connect Google Classroom</button>
-    </section>
-  </div>
-
-  <footer class="credit">STUDY GROUP MATCHER — PROJECT 2 STATIC BUILD</footer>
+<div class="masthead">
+<h1>Study Group Matcher</h1>
+<span class="term">Summer 2026</span>
 </div>
+
+<nav class="tabs" aria-label="Screens">
+<a class="tab" href="profile.html" aria-current="page">1 · Profile</a>
+<a class="tab" href="dashboard.html" >2 · Dashboard</a>
+<a class="tab" href="matches.html" >3 · Matches</a>
+</nav>
+
+<div class="panel">
+<section class="screen active">
+<p class="panel-title">Create your profile</p>
+<p class="panel-sub">Tell us what you're studying and when you're free, so we can find your people!</p>
+
+<p id="profile-required-note" class="note error" style="display:none;"><b>Profile required.</b> Create and save a profile below before you can access the Dashboard or Matches tabs.</p>
+
+<form id="profile-form">
+<div class="field">
+<label for="name">Full name</label>
+<input type="text" id="name" placeholder="John Doe">
+</div>
+<div class="field">
+<label for="email">Email address</label>
+<input type="email" id="email" placeholder="you@school.edu">
+</div>
+<div class="field">
+<label for="course_id">Course ID</label>
+<input type="number" id="course_id" placeholder="e.g. CHEM 101" required>
+</div>
+
+<div class="field">
+<label>Weekly availability</label>
+<p class="panel-sub">Check each day you're free and set a time range.</p>
+<div id="availability-builder">
+<div class="avail-row" data-day="monday">
+<label><input type="checkbox" class="avail-day"> Monday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="tuesday">
+<label><input type="checkbox" class="avail-day"> Tuesday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="wednesday">
+<label><input type="checkbox" class="avail-day"> Wednesday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="thursday">
+<label><input type="checkbox" class="avail-day"> Thursday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="friday">
+<label><input type="checkbox" class="avail-day"> Friday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="saturday">
+<label><input type="checkbox" class="avail-day"> Saturday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="sunday">
+<label><input type="checkbox" class="avail-day"> Sunday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+</div>
+</div>
+
+<button class="btn-primary" type="submit">Create profile</button>
+<p id="profile-saved-note" class="note" style="display:none;"><b>Saved.</b> Your profile is stored locally and will be used as <code>student_a</code> when you confirm a match.</p>
+</form>
+
+<p class="link-row">Already have an account? <a href="#">Log in</a></p>
+
+<div class="divider">or connect your accounts</div>
+
+<button type="button" class="btn-oauth" id="connect-google"><span class="dot" style="background:#4285F4"></span> Connect Google Calendar</button>
+<button type="button" class="btn-oauth" id="connect-notion"><span class="dot" style="background:#000000"></span> Connect Notion</button>
+</section>
+</div>
+
+<footer class="credit">STUDY GROUP MATCHER</footer>
+</div>
+
+<script src="api.js"></script>
+<script>
+(function () {
+var form = document.getElementById("profile-form");
+var savedNote = document.getElementById("profile-saved-note");
+var requiredNote = document.getElementById("profile-required-note");
+
+var params = new URLSearchParams(window.location.search);
+if (params.get("required") === "1" && requiredNote) {
+requiredNote.style.display = "block";
+}
+
+function dayRows() {
+return Array.prototype.slice.call(document.querySelectorAll(".avail-row"));
+}
+
+function prefillFromStoredProfile() {
+var profile = getStoredProfile();
+if (!profile) return;
+
+if (profile.name) document.getElementById("name").value = profile.name;
+if (profile.email) document.getElementById("email").value = profile.email;
+if (profile.course_id) document.getElementById("course_id").value = profile.course_id;
+
+dayRows().forEach(function (row) {
+var day = row.getAttribute("data-day");
+var block = profile.availability && profile.availability[day];
+if (block && block.length) {
+row.querySelector(".avail-day").checked = true;
+row.querySelector(".avail-start").value = block[0][0];
+row.querySelector(".avail-end").value = block[0][1];
+}
+});
+}
+
+function buildAvailability() {
+var availability = {};
+dayRows().forEach(function (row) {
+var day = row.getAttribute("data-day");
+var checked = row.querySelector(".avail-day").checked;
+var start = row.querySelector(".avail-start").value;
+var end = row.querySelector(".avail-end").value;
+if (checked && start && end) {
+availability[day] = [[start, end]];
+}
+});
+return availability;
+}
+
+form.addEventListener("submit", function (event) {
+event.preventDefault();
+
+var profile = {
+name: document.getElementById("name").value,
+email: document.getElementById("email").value,
+course_id: Number(document.getElementById("course_id").value),
+availability: buildAvailability()
+};
+
+saveProfile(profile);
+savedNote.style.display = "block";
+if (requiredNote) requiredNote.style.display = "none";
+});
+
+document.getElementById("connect-google").addEventListener("click", function () {
+window.location.href = googleLoginUrl();
+});
+
+document.getElementById("connect-notion").addEventListener("click", function () {
+window.location.href = notionLoginUrl();
+});
+
+prefillFromStoredProfile();
+})();
+</script>
 </body>
 </html>

@@ -10,67 +10,192 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<script src="api.js"></script>
+<script>
+if (!getStoredProfile()) {
+window.location.href = "profile.html?required=1";
+}
+</script>
 <div class="wrap">
-  <div class="masthead">
-    <h1>Study Group Matcher</h1>
-    <span class="term">Summer 2026</span>
-  </div>
-
-  <nav class="tabs" aria-label="Screens">
-    <a class="tab" href="profile.html" >1 · Profile</a>
-    <a class="tab" href="dashboard.html" >2 · Dashboard</a>
-    <a class="tab" href="matches.html" aria-current="page">3 · Matches</a>
-  </nav>
-
-  <div class="panel">
-    <section class="screen active">
-<p class="panel-title">Your matches</p>
-      <p class="panel-sub">Ranked by shared courses and schedule overlap.</p>
-
-      <div class="match-card">
-        <svg class="ring" width="52" height="52" viewBox="0 0 52 52">
-          <circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>
-          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--high)" stroke-width="5"
-            stroke-dasharray="138.2" stroke-dashoffset="11.1" stroke-linecap="round" transform="rotate(-90 26 26)"/>
-          <text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">92%</text>
-        </svg>
-        <div>
-          <p class="match-name"><span class="shape circle"></span> Jane D.</p>
-          <p class="match-meta">Biology 101 &nbsp;·&nbsp; 3 shared courses</p>
-        </div>
-      </div>
-
-      <div class="match-card">
-        <svg class="ring" width="52" height="52" viewBox="0 0 52 52">
-          <circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>
-          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--mid)" stroke-width="5"
-            stroke-dasharray="138.2" stroke-dashoffset="30.4" stroke-linecap="round" transform="rotate(-90 26 26)"/>
-          <text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">78%</text>
-        </svg>
-        <div>
-          <p class="match-name"><span class="shape triangle"></span> Alex R.</p>
-          <p class="match-meta">Calculus II &nbsp;·&nbsp; 2 shared courses</p>
-        </div>
-      </div>
-
-      <div class="match-card">
-        <svg class="ring" width="52" height="52" viewBox="0 0 52 52">
-          <circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>
-          <circle cx="26" cy="26" r="22" fill="none" stroke="var(--low)" stroke-width="5"
-            stroke-dasharray="138.2" stroke-dashoffset="48.4" stroke-linecap="round" transform="rotate(-90 26 26)"/>
-          <text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">65%</text>
-        </svg>
-        <div>
-          <p class="match-name"><span class="shape square"></span> Sam K.</p>
-          <p class="match-meta">World History &nbsp;·&nbsp; 4 shared courses</p>
-        </div>
-      </div>
-
-      <p class="note"><b>Accessibility decision:</b> match score uses color + numeric % + icon shape cues (not color alone), and badges meet 4.5:1 contrast so colorblind users can still read match strength.</p>
-    </section>
-  </div>
-
-  <footer class="credit">STUDY GROUP MATCHER — PROJECT 2 STATIC BUILD</footer>
+<div class="masthead">
+<h1>Study Group Matcher</h1>
+<span class="term">Summer 2026</span>
 </div>
+
+<nav class="tabs" aria-label="Screens">
+<a class="tab" href="profile.html" >1 · Profile</a>
+<a class="tab" href="dashboard.html" >2 · Dashboard</a>
+<a class="tab" href="matches.html" aria-current="page">3 · Matches</a>
+</nav>
+
+<div class="panel">
+<section class="screen active">
+<p class="panel-title">Your matches</p>
+<p class="panel-sub">Ranked by shared courses and schedule overlap.</p>
+
+<p id="profile-warning" class="note error" style="display:none;"><b>No profile found.</b> Go to the Profile tab and create one first.</p>
+
+<div class="match-card" data-partner-id="2" data-partner-name="Jane D." data-course-id="101" data-topic="Biology 101" data-availability='{"monday":[["14:00","16:00"]],"wednesday":[["14:00","16:00"]]}'>
+<div class="match-card-top">
+<svg class="ring" width="52" height="52" viewBox="0 0 52 52">
+<circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>
+<circle cx="26" cy="26" r="22" fill="none" stroke="var(--high)" stroke-width="5"
+stroke-dasharray="138.2" stroke-dashoffset="11.1" stroke-linecap="round" transform="rotate(-90 26 26)"/>
+<text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">92%</text>
+</svg>
+<div>
+<p class="match-name"><span class="shape circle"></span> Jane D.</p>
+<p class="match-meta">Biology 101 &nbsp;·&nbsp; 3 shared courses</p>
+</div>
+</div>
+<div class="match-actions">
+<div class="field">
+<label for="start-2">Session start</label>
+<input type="datetime-local" id="start-2" class="match-start">
+</div>
+<div class="field">
+<label for="end-2">Session end</label>
+<input type="datetime-local" id="end-2" class="match-end">
+</div>
+<button type="button" class="btn-secondary schedule-btn">Confirm &amp; schedule</button>
+<p class="match-status"></p>
+</div>
+</div>
+
+<div class="match-card" data-partner-id="3" data-partner-name="Alex R." data-course-id="201" data-topic="Calculus II" data-availability='{"tuesday":[["10:00","12:00"]]}'>
+<div class="match-card-top">
+<svg class="ring" width="52" height="52" viewBox="0 0 52 52">
+<circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>
+<circle cx="26" cy="26" r="22" fill="none" stroke="var(--mid)" stroke-width="5"
+stroke-dasharray="138.2" stroke-dashoffset="30.4" stroke-linecap="round" transform="rotate(-90 26 26)"/>
+<text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">78%</text>
+</svg>
+<div>
+<p class="match-name"><span class="shape triangle"></span> Alex R.</p>
+<p class="match-meta">Calculus II &nbsp;·&nbsp; 2 shared courses</p>
+</div>
+</div>
+<div class="match-actions">
+<div class="field">
+<label for="start-3">Session start</label>
+<input type="datetime-local" id="start-3" class="match-start">
+</div>
+<div class="field">
+<label for="end-3">Session end</label>
+<input type="datetime-local" id="end-3" class="match-end">
+</div>
+<button type="button" class="btn-secondary schedule-btn">Confirm &amp; schedule</button>
+<p class="match-status"></p>
+</div>
+</div>
+
+<div class="match-card" data-partner-id="4" data-partner-name="Sam K." data-course-id="301" data-topic="World History" data-availability='{"monday":[["16:00","18:00"]]}'>
+<div class="match-card-top">
+<svg class="ring" width="52" height="52" viewBox="0 0 52 52">
+<circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>
+<circle cx="26" cy="26" r="22" fill="none" stroke="var(--low)" stroke-width="5"
+stroke-dasharray="138.2" stroke-dashoffset="48.4" stroke-linecap="round" transform="rotate(-90 26 26)"/>
+<text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">65%</text>
+</svg>
+<div>
+<p class="match-name"><span class="shape square"></span> Sam K.</p>
+<p class="match-meta">World History &nbsp;·&nbsp; 4 shared courses</p>
+</div>
+</div>
+<div class="match-actions">
+<div class="field">
+<label for="start-4">Session start</label>
+<input type="datetime-local" id="start-4" class="match-start">
+</div>
+<div class="field">
+<label for="end-4">Session end</label>
+<input type="datetime-local" id="end-4" class="match-end">
+</div>
+<button type="button" class="btn-secondary schedule-btn">Confirm &amp; schedule</button>
+<p class="match-status"></p>
+</div>
+</div>
+
+<p class="note"><b>Accessibility decision:</b> match score uses color + numeric % + icon shape cues (not color alone), and badges meet 4.5:1 contrast so colorblind users can still read match strength.</p>
+</section>
+</div>
+
+<footer class="credit">STUDY GROUP MATCHER</footer>
+</div>
+
+<script>
+(function () {
+var profile = getStoredProfile();
+var warning = document.getElementById("profile-warning");
+if (!profile && warning) {
+warning.style.display = "block";
+}
+
+document.querySelectorAll(".match-card").forEach(function (card) {
+var btn = card.querySelector(".schedule-btn");
+var status = card.querySelector(".match-status");
+
+btn.addEventListener("click", function () {
+var currentProfile = getStoredProfile();
+if (!currentProfile) {
+status.textContent = "Create your profile first (Profile tab) so we have your course_id and availability.";
+status.className = "match-status error";
+return;
+}
+
+var startVal = card.querySelector(".match-start").value;
+var endVal = card.querySelector(".match-end").value;
+if (!startVal || !endVal) {
+status.textContent = "Pick a session start and end time first.";
+status.className = "match-status error";
+return;
+}
+
+var payload = {
+user_id: 1,
+partner_id: Number(card.getAttribute("data-partner-id")),
+start_time: new Date(startVal).toISOString(),
+end_time: new Date(endVal).toISOString(),
+student_a: {
+course_id: currentProfile.course_id,
+availability: currentProfile.availability || {}
+},
+student_b: {
+course_id: Number(card.getAttribute("data-course-id")),
+availability: JSON.parse(card.getAttribute("data-availability"))
+},
+topic: card.getAttribute("data-topic"),
+student_a_name: currentProfile.name || "You",
+student_b_name: card.getAttribute("data-partner-name")
+};
+
+status.textContent = "Confirming with backend...";
+status.className = "match-status";
+
+confirmMatch(payload).then(function (result) {
+if (!result.ok) {
+status.textContent = "Error: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+status.className = "match-status error";
+return;
+}
+
+var parts = [
+"status: " + result.data.status,
+"calendar: " + result.data.calendar_status,
+"notion: " + result.data.notion_status
+];
+if (result.data.meet_link) parts.push("meet: " + result.data.meet_link);
+if (result.data.notes_page_url) parts.push("notes: " + result.data.notes_page_url);
+
+status.textContent = parts.join(" | ");
+status.className = "match-status ok";
+}).catch(function (err) {
+status.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
+status.className = "match-status error";
+});
+});
+});
+})();
+</script>
 </body>
 </html>
