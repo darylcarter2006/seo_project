@@ -10,6 +10,12 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<script src="api.js"></script>
+<script>
+if (!getStoredProfile()) {
+window.location.href = "profile.html?required=1";
+}
+</script>
 <div class="wrap">
 <div class="masthead">
 <h1>Study Group Matcher</h1>
@@ -117,7 +123,6 @@ stroke-dasharray="138.2" stroke-dashoffset="48.4" stroke-linecap="round" transfo
 <footer class="credit">STUDY GROUP MATCHER — PROJECT 2 STATIC BUILD</footer>
 </div>
 
-<script src="api.js"></script>
 <script>
 (function () {
 var profile = getStoredProfile();
