@@ -4,8 +4,13 @@ GET /api/match/candidates and GET /api/match/history -- the routes
 matches.html and dashboard.html actually fetch from.
 """
 
-from app.services.persistence import get_or_create_course, save_match
+from app.services.persistence import get_or_create_course, save_match, email_domain
 from tests.conftest import make_user
+
+
+def test_email_domain_is_lowercased_part_after_at():
+    assert email_domain("Alice@Example.EDU") == "example.edu"
+    assert email_domain("bob@sub.school.edu") == "sub.school.edu"
 
 
 def test_candidates_ranks_other_users_by_score(app):
@@ -35,6 +40,35 @@ def test_candidates_ranks_other_users_by_score(app):
     bottom = candidates[-1]
     assert bottom["user"]["id"] == far_match.id
     assert bottom["score"] == 0
+
+
+def test_candidates_includes_same_domain_users(app):
+    course = get_or_create_course("CS101", "Intro to CS")
+    me = make_user("Alice", "alice@example.edu", [(0, 14, 16)], "quiet", 3, course)
+    classmate = make_user("Bob", "bob@example.edu", [(0, 14, 16)], "quiet", 3, course)
+
+    client = app.test_client()
+    response = client.get(f"/api/match/candidates?user_id={me.id}")
+
+    candidate_ids = [c["user"]["id"] for c in response.get_json()["candidates"]]
+    assert classmate.id in candidate_ids
+
+
+def test_candidates_excludes_different_domain_users_even_with_perfect_score(app):
+    """A cross-school user with an otherwise-identical course/availability/
+    style/pace (a perfect score if scored) must never appear -- the school
+    filter is a hard filter, not a ranking signal."""
+    course = get_or_create_course("CS101", "Intro to CS")
+    me = make_user("Alice", "alice@example.edu", [(0, 14, 16)], "quiet", 3, course)
+    other_school = make_user(
+        "Zoe", "zoe@otherschool.edu", [(0, 14, 16)], "quiet", 3, course
+    )
+
+    client = app.test_client()
+    response = client.get(f"/api/match/candidates?user_id={me.id}")
+
+    candidate_ids = [c["user"]["id"] for c in response.get_json()["candidates"]]
+    assert other_school.id not in candidate_ids
 
 
 def test_candidates_missing_user_returns_404(app):

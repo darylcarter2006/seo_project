@@ -18,7 +18,7 @@ from app.routes.auth_routes import get_valid_access_token
 from app.services.google_calendar_service import GoogleCalendarService
 from app.services.notion_service import NotionService
 from app.services.recommendation_engine import calculate_score, find_best_matches
-from app.services.persistence import get_user, save_match, get_all_users, get_matches
+from app.services.persistence import get_user, save_match, get_all_users, get_matches, email_domain
 
 match_bp = Blueprint("match", __name__)
 
@@ -36,7 +36,11 @@ def candidates():
     GET /api/match/candidates?user_id=1
 
     Ranked list of the best-scoring other users for this user, powered by
-    recommendation_engine.find_best_matches(). Response:
+    recommendation_engine.find_best_matches(). Hard-scoped to users whose
+    email domain matches the requester's (a "same school" proxy -- see
+    README for why) before scoring -- cross-domain users never appear here,
+    regardless of how well their course/availability/style/pace overlap.
+    Response:
         {"candidates": [{"user": {...}, "score": 82.5, "reasons": [...]}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
@@ -47,8 +51,8 @@ def candidates():
     if user is None:
         return jsonify({"error": "user_id must reference an existing user"}), 404
 
-    all_users = get_all_users()
-    return jsonify({"candidates": find_best_matches(user, all_users)}), 200
+    same_school = [u for u in get_all_users() if email_domain(u.email) == email_domain(user.email)]
+    return jsonify({"candidates": find_best_matches(user, same_school)}), 200
 
 
 @match_bp.route("/history")

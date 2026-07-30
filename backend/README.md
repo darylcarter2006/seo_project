@@ -43,7 +43,7 @@ app/
   database/
     db.py                  # the single shared SQLAlchemy instance
     migrations.py          # init_db() / reset_db() — create_all()/drop_all() wrappers
-    seed.py                 # demo data: python -m app.database.seed (destructive reset!)
+    seed.py                 # demo data: python -m app.database.seed (safe to re-run, see below)
   models/
     oauth_token.py         # per-user OAuth tokens, user_id FKs to User
     user.py, course.py, availability.py, preference.py, match.py
@@ -91,10 +91,12 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   course code, weekly availability, optional study style/pace) from the
   shape `profile.html`'s form actually submits. Looked up by email, so
   resubmitting the same email updates that user instead of duplicating.
-- `GET /api/match/candidates?user_id=` — ranked list of other users for
-  `matches.html` to render, via `recommendation_engine.find_best_matches()`.
-  Note: it ranks *everyone*, including 0-score pairs — there's no minimum-
-  score cutoff, so very low/no-overlap candidates still appear, just last.
+- `GET /api/match/candidates?user_id=` — ranked list of other users at the
+  same school (see "Design decision" below) for `matches.html` to render,
+  via `recommendation_engine.find_best_matches()`. Note: it ranks
+  *everyone* within that school, including 0-score pairs — there's no
+  minimum-score cutoff, so very low/no-overlap candidates still appear,
+  just last.
 - `GET /api/match/history?user_id=` — this user's confirmed matches, for
   `dashboard.html`'s "Your groups" section (repurposed to show real
   confirmed 1:1 matches — the schema has no multi-person "group" concept).
@@ -115,6 +117,58 @@ the `FRONTEND_BASE_URL` env var, default `http://localhost:8000`, dev-only)
 with `?connected=google`/`?connected=notion` or `?connection_error=1`,
 which `profile.html` reads on load to show a status message — instead of
 leaving the user stranded on a bare JSON response.
+
+## Design decision: school-scoping by email domain
+
+`GET /api/match/candidates` never shows a candidate whose email domain
+(the part after `@`, via `persistence.email_domain()`) doesn't match the
+requester's — a `chem101@bigstate.edu` user and a `chem101@othercollege.edu`
+user typing the same course code aren't in the same class, and shouldn't
+match just because the text matches.
+
+**Why email domain:** there's no dedicated "school" field on `User` (adding
+one is a real schema change to Manuel's model, out of scope here), but
+every profile already requires a real email — the domain is a reasonable
+free proxy for "same institution" with zero schema changes.
+
+**Why a hard filter, not a ranking signal:** a cross-school "match" isn't a
+worse match, it's not a match at all — they can't actually be in the same
+class. Demoting it with a lower score would still let it appear in the
+list; excluding it entirely from `get_all_users()` before scoring is what
+actually prevents it from ever showing up.
+
+**Known limitation:** this breaks down for schools that share a generic
+email provider (e.g. two students both on `@gmail.com`, or a school that
+issues `@outlook.com` addresses) — they'd either be wrongly excluded from
+real classmates using a different address, or wrongly included with
+strangers on the same generic provider. A real `school_id` field (or a
+domain allowlist keyed to actual institutions) is the correct long-term
+fix; email domain is a deliberate stopgap given the timeline.
+
+## Demo seed data
+
+```bash
+python -m app.database.seed
+```
+
+Creates/updates 10 demo users, all `@example.edu` (so they're mutually
+visible to each other under the school-scoping above), across 5 courses
+with deliberately varied availability/study-style/pace so browsing
+candidates for any one of them shows a realistic mix of high, medium, and
+low match scores instead of a uniform wall of 100%s or 0%s. See the
+clustering comment at the top of `app/database/seed.py` for the reasoning
+behind each grouping.
+
+**Safe to re-run**: each user is looked up and updated by email rather than
+duplicated, and — unlike the old version of this script — it does **not**
+wipe the database first (`init_db()`'s idempotent `create_all()`, not
+`reset_db()`'s `drop_all()`), so anything else in the DB (OAuth tokens,
+matches you confirmed by hand while testing) survives a re-seed.
+
+To try it: run the seed script, then hit `/api/match/candidates?user_id=1`
+(Ava Chen is seeded first, so she'll typically get id `1` on a fresh DB —
+confirm the actual id via `sqlite3 instance/study_partner.db "select id, email from user;"`
+if you've seeded before) and you should see a spread of scores, not all-or-nothing.
 
 ## Known UX limitation: stale profile-form data between users
 
@@ -152,17 +206,19 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-50 tests cover availability/compatibility scoring, ranking, DB persistence
+57 tests cover availability/compatibility scoring, ranking, DB persistence
 (`Match`/`User` CRUD), profile creation/update (`POST /api/users`), match
-discovery (`/candidates`, `/history`), the OAuth `user_id` query param and
-redirect-on-callback behavior, and `/api/match/confirm` (success + real
-persisted `Match`, incompatible pair, unknown user, Calendar/Notion failure
-fallback paths).
+discovery including the same-school hard filter (`/candidates`, `/history`),
+the OAuth `user_id` query param and redirect-on-callback behavior, the seed
+script's idempotency, and `/api/match/confirm` (success + real persisted
+`Match`, incompatible pair, unknown user, Calendar/Notion failure fallback
+paths).
 
-Manual check, full 3-tab flow: run `python run.py` here, then serve the
-frontend statically from the repo root (e.g. `python -m http.server 8000`)
-and open `http://localhost:8000/profile.html` — create a profile, connect
-Google/Notion if you want real bookings, then repeat with a second
-email/browser profile so there's someone to match with. The Matches tab
-fetches real candidates from `/api/match/candidates`; confirming one shows
-up on the Dashboard tab via `/api/match/history`.
+Manual check, full 3-tab flow: run `python -m app.database.seed` to get demo
+users in place, then `python run.py`, then serve the frontend statically
+from the repo root (e.g. `python -m http.server 8000`) and open
+`http://localhost:8000/profile.html` — create a profile with an
+`@example.edu` email so it's visible to the seeded demo users, or just log
+in as one of them directly. The Matches tab fetches real (same-school)
+candidates from `/api/match/candidates`; confirming one shows up on the
+Dashboard tab via `/api/match/history`.

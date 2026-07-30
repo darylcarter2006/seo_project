@@ -70,6 +70,13 @@ def get_user_by_email(email):
     return User.query.filter_by(email=email).first()
 
 
+def email_domain(email):
+    """Returns the part after '@', lowercased -- used as a lightweight
+    proxy for "school" since there's no dedicated school field on User.
+    See README for the tradeoffs of this approach."""
+    return email.rsplit("@", 1)[-1].lower()
+
+
 def get_all_users():
     return User.query.all()
 
