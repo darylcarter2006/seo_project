@@ -35,6 +35,47 @@ def _expand_slots(availability_slots):
     return expanded
 
 
+# day_of_week convention (0=Monday..6=Sunday) matches Availability's own
+# docstring and app/routes/user_routes.py's DAY_NAME_TO_INDEX.
+DAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+
+
+def overlapping_windows(user1, user2):
+    """The actual overlapping availability windows between two users, not
+    just a count -- merges contiguous overlapping hours on the same day
+    into single blocks:
+        [{"day": "monday", "start": "14:00", "end": "16:00"}, ...]
+    Sorted by day, then start time."""
+    overlap = _expand_slots(user1.availability_slots) & _expand_slots(user2.availability_slots)
+
+    hours_by_day = {}
+    for day, hour in overlap:
+        hours_by_day.setdefault(day, []).append(hour)
+
+    windows = []
+    for day in sorted(hours_by_day):
+        hours = sorted(hours_by_day[day])
+        block_start = hours[0]
+        prev = hours[0]
+        for hour in hours[1:]:
+            if hour == prev + 1:
+                prev = hour
+                continue
+            windows.append({
+                "day": DAY_NAMES[day],
+                "start": f"{block_start:02d}:00",
+                "end": f"{prev + 1:02d}:00",
+            })
+            block_start = hour
+            prev = hour
+        windows.append({
+            "day": DAY_NAMES[day],
+            "start": f"{block_start:02d}:00",
+            "end": f"{prev + 1:02d}:00",
+        })
+    return windows
+
+
 def availability_overlap_score(user1, user2):
     """Jaccard similarity of availability slots: overlap / union."""
     slots1 = _expand_slots(user1.availability_slots)

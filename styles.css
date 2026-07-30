@@ -300,6 +300,7 @@
 
   .match-name { font-weight: 600; font-size: 0.98rem; margin: 0 0 2px; display: flex; align-items: center; gap: 6px; }
   .match-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--ink-soft); }
+  .match-overlap { font-size: 0.82rem; color: var(--ink); margin: 4px 0 0; }
 
   .shape { display: inline-block; width: 9px; height: 9px; flex-shrink: 0; }
   .shape.circle { border-radius: 50%; background: var(--high); }

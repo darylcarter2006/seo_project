@@ -101,10 +101,14 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   "Connect" button regardless of prior state.
 - `GET /api/match/candidates?user_id=` — ranked list of other users at the
   same school (see "Design decision" below) for `matches.html` to render,
-  via `recommendation_engine.find_best_matches()`. Note: it ranks
-  *everyone* within that school, including 0-score pairs — there's no
-  minimum-score cutoff, so very low/no-overlap candidates still appear,
-  just last.
+  via `recommendation_engine.find_best_matches()`. Each candidate includes
+  `overlapping_availability`: the actual overlapping time windows (not
+  just a count), e.g. `[{"day": "monday", "start": "14:00", "end": "16:00"}]`,
+  computed by `scoring.overlapping_windows()` (merges contiguous
+  overlapping hours into single blocks) so the frontend can show exactly
+  when to schedule instead of guessing. Note: it ranks *everyone* within
+  that school, including 0-score pairs — there's no minimum-score cutoff,
+  so very low/no-overlap candidates still appear, just last.
 - `GET /api/match/history?user_id=` — this user's confirmed matches, for
   `dashboard.html`'s "Your groups" section (repurposed to show real
   confirmed 1:1 matches — the schema has no multi-person "group" concept).
@@ -214,13 +218,14 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-60 tests cover availability/compatibility scoring, ranking, DB persistence
-(`Match`/`User` CRUD), profile creation/update (`POST /api/users`),
-connection status (`GET /<id>/connections`), match discovery including the
-same-school hard filter (`/candidates`, `/history`), the OAuth `user_id`
-query param and redirect-on-callback behavior, the seed script's
-idempotency, and `/api/match/confirm` (success + real persisted `Match`,
-incompatible pair, unknown user, Calendar/Notion failure fallback paths).
+64 tests cover availability/compatibility scoring and overlapping-window
+computation, ranking, DB persistence (`Match`/`User` CRUD), profile
+creation/update (`POST /api/users`), connection status
+(`GET /<id>/connections`), match discovery including the same-school hard
+filter (`/candidates`, `/history`), the OAuth `user_id` query param and
+redirect-on-callback behavior, the seed script's idempotency, and
+`/api/match/confirm` (success + real persisted `Match`, incompatible pair,
+unknown user, Calendar/Notion failure fallback paths).
 
 Manual check, full 3-tab flow: run `python -m app.database.seed` to get demo
 users in place, then `python run.py`, then serve the frontend statically

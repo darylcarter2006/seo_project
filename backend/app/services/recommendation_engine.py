@@ -13,7 +13,7 @@ Exposes:
     explain_match(user1, user2)        -> {"score": float, "reasons": [str]}
 """
 
-from app.services.scoring import calculate_score, _expand_slots
+from app.services.scoring import calculate_score, _expand_slots, overlapping_windows
 from app.services.ranking import rank_candidates, find_best_matches as _find_best_matches
 
 
@@ -22,7 +22,8 @@ def explain_match(user1, user2):
     Returns the score plus human-readable reasons, e.g.:
     {
         "score": 92.0,
-        "reasons": ["3 overlapping study time block(s)", "Shared course(s): CS101", ...]
+        "reasons": ["3 overlapping study time block(s)", "Shared course(s): CS101", ...],
+        "overlapping_availability": [{"day": "monday", "start": "14:00", "end": "16:00"}, ...]
     }
     """
     score = calculate_score(user1, user2)
@@ -44,7 +45,11 @@ def explain_match(user1, user2):
         if abs(user1.preference.pace - user2.preference.pace) <= 1:
             reasons.append("Similar study pace")
 
-    return {"score": score, "reasons": reasons}
+    return {
+        "score": score,
+        "reasons": reasons,
+        "overlapping_availability": overlapping_windows(user1, user2),
+    }
 
 
 def find_best_matches(current_user, all_users, top_n=5):

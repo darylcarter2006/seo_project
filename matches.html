@@ -57,11 +57,30 @@ return;
 }
 
 var CIRCUMFERENCE = 138.2; // 2 * pi * r(22), matches the ring markup below
+var DAY_LABELS = {
+monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
+friday: "Fri", saturday: "Sat", sunday: "Sun"
+};
 
 function tierFor(score) {
 if (score >= 75) return { colorVar: "--high", shapeClass: "circle" };
 if (score >= 50) return { colorVar: "--mid", shapeClass: "triangle" };
 return { colorVar: "--low", shapeClass: "square" };
+}
+
+function formatTime12h(hhmm) {
+var hour = parseInt(hhmm.split(":")[0], 10);
+var period = hour >= 12 ? "PM" : "AM";
+var hour12 = hour % 12;
+if (hour12 === 0) hour12 = 12;
+return hour12 + ":00 " + period;
+}
+
+function formatOverlapWindows(windows) {
+if (!windows || !windows.length) return "No overlapping availability";
+return "Free together: " + windows.map(function (w) {
+return DAY_LABELS[w.day] + " " + formatTime12h(w.start) + "–" + formatTime12h(w.end);
+}).join(", ");
 }
 
 function renderCard(candidate) {
@@ -70,6 +89,7 @@ var score = Math.round(candidate.score);
 var tier = tierFor(score);
 var dashoffset = (CIRCUMFERENCE * (1 - score / 100)).toFixed(1);
 var meta = (candidate.reasons || []).join(" · ") || "No shared details yet";
+var overlapText = formatOverlapWindows(candidate.overlapping_availability);
 var topic = (user.courses && user.courses.length) ? user.courses[0] : "Study Session";
 
 var card = document.createElement("div");
@@ -88,6 +108,7 @@ card.innerHTML =
 '<div>' +
 '<p class="match-name"><span class="shape ' + tier.shapeClass + '"></span> ' + user.name + '</p>' +
 '<p class="match-meta">' + meta + '</p>' +
+'<p class="match-overlap">' + overlapText + '</p>' +
 '</div>' +
 '</div>' +
 '<div class="match-actions">' +

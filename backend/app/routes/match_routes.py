@@ -41,7 +41,9 @@ def candidates():
     README for why) before scoring -- cross-domain users never appear here,
     regardless of how well their course/availability/style/pace overlap.
     Response:
-        {"candidates": [{"user": {...}, "score": 82.5, "reasons": [...]}, ...]}
+        {"candidates": [{"user": {...}, "score": 82.5, "reasons": [...],
+         "overlapping_availability": [{"day": "monday", "start": "14:00",
+         "end": "16:00"}, ...]}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
     if user_id is None:
