@@ -66,6 +66,10 @@ def get_user(user_id):
     return db.session.get(User, user_id)
 
 
+def get_user_by_email(email):
+    return User.query.filter_by(email=email).first()
+
+
 def get_all_users():
     return User.query.all()
 
@@ -77,6 +81,14 @@ def add_availability(user_id, day_of_week, start_hour, end_hour):
     db.session.add(slot)
     db.session.commit()
     return slot
+
+
+def clear_availability(user_id):
+    """Deletes all of a user's existing Availability rows -- used when
+    re-saving a profile, so re-submitting the form replaces the schedule
+    instead of accumulating duplicate/stale rows alongside it."""
+    Availability.query.filter_by(user_id=user_id).delete()
+    db.session.commit()
 
 
 def set_preference(user_id, study_style, pace):

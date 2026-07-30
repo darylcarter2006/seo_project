@@ -4,13 +4,17 @@
  * Matches the endpoints implemented on the backend/api branch:
  *   GET  /api/match/ping
  *   POST /api/match/confirm
- *   GET  /api/auth/google/login
- *   GET  /api/auth/notion/login
+ *   GET  /api/match/candidates?user_id=
+ *   GET  /api/match/history?user_id=
+ *   POST /api/users
+ *   GET  /api/auth/google/login[?user_id=]
+ *   GET  /api/auth/notion/login[?user_id=]
  * Change API_BASE if the backend is not running on localhost:5000.
  */
 
 const API_BASE = "http://localhost:5000";
 const PROFILE_STORAGE_KEY = "studyProfile";
+const USER_ID_STORAGE_KEY = "studyUserId";
 
 function getStoredProfile() {
     try {
@@ -26,12 +30,23 @@ function saveProfile(profile) {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
 }
 
-function googleLoginUrl() {
-    return API_BASE + "/api/auth/google/login";
+function getStoredUserId() {
+    const raw = localStorage.getItem(USER_ID_STORAGE_KEY);
+    return raw ? Number(raw) : null;
 }
 
-function notionLoginUrl() {
-    return API_BASE + "/api/auth/notion/login";
+function saveUserId(userId) {
+    localStorage.setItem(USER_ID_STORAGE_KEY, String(userId));
+}
+
+function googleLoginUrl(userId) {
+    const url = API_BASE + "/api/auth/google/login";
+    return userId ? url + "?user_id=" + encodeURIComponent(userId) : url;
+}
+
+function notionLoginUrl(userId) {
+    const url = API_BASE + "/api/auth/notion/login";
+    return userId ? url + "?user_id=" + encodeURIComponent(userId) : url;
 }
 
 async function pingBackend() {
@@ -58,4 +73,47 @@ async function confirmMatch(payload) {
     }
 
   return { ok: res.ok, status: res.status, data: data };
+}
+
+async function saveProfileToBackend(profile) {
+    const res = await fetch(API_BASE + "/api/users", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(profile),
+    });
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function getMatchCandidates(userId) {
+    const res = await fetch(API_BASE + "/api/match/candidates?user_id=" + encodeURIComponent(userId));
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function getMatchHistory(userId) {
+    const res = await fetch(API_BASE + "/api/match/history?user_id=" + encodeURIComponent(userId));
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
 }

@@ -39,8 +39,8 @@
 <input type="email" id="email" placeholder="you@school.edu">
 </div>
 <div class="field">
-<label for="course_id">Course ID</label>
-<input type="number" id="course_id" placeholder="e.g. CHEM 101" required>
+<label for="course_code">Course code</label>
+<input type="text" id="course_code" placeholder="e.g. CHEM101" required>
 </div>
 
 <div class="field">
@@ -79,7 +79,8 @@
 </div>
 
 <button class="btn-primary" type="submit">Create profile</button>
-<p id="profile-saved-note" class="note" style="display:none;"><b>Saved.</b> Your profile is stored locally and will be used as <code>student_a</code> when you confirm a match.</p>
+<p id="profile-saved-note" class="note" style="display:none;"><b>Saved.</b></p>
+<p id="profile-error-note" class="note error" style="display:none;"></p>
 </form>
 
 <p class="link-row">Already have an account? <a href="#">Log in</a></p>
@@ -99,6 +100,7 @@
 (function () {
 var form = document.getElementById("profile-form");
 var savedNote = document.getElementById("profile-saved-note");
+var errorNote = document.getElementById("profile-error-note");
 var requiredNote = document.getElementById("profile-required-note");
 
 var params = new URLSearchParams(window.location.search);
@@ -116,7 +118,7 @@ if (!profile) return;
 
 if (profile.name) document.getElementById("name").value = profile.name;
 if (profile.email) document.getElementById("email").value = profile.email;
-if (profile.course_id) document.getElementById("course_id").value = profile.course_id;
+if (profile.course_code) document.getElementById("course_code").value = profile.course_code;
 
 dayRows().forEach(function (row) {
 var day = row.getAttribute("data-day");
@@ -149,21 +151,36 @@ event.preventDefault();
 var profile = {
 name: document.getElementById("name").value,
 email: document.getElementById("email").value,
-course_id: Number(document.getElementById("course_id").value),
+course_code: document.getElementById("course_code").value,
 availability: buildAvailability()
 };
 
+errorNote.style.display = "none";
+savedNote.style.display = "none";
+
+saveProfileToBackend(profile).then(function (result) {
+if (!result.ok) {
+errorNote.textContent = "Could not save profile: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+errorNote.style.display = "block";
+return;
+}
+
+saveUserId(result.data.user_id);
 saveProfile(profile);
 savedNote.style.display = "block";
 if (requiredNote) requiredNote.style.display = "none";
+}).catch(function (err) {
+errorNote.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
+errorNote.style.display = "block";
+});
 });
 
 document.getElementById("connect-google").addEventListener("click", function () {
-window.location.href = googleLoginUrl();
+window.location.href = googleLoginUrl(getStoredUserId());
 });
 
 document.getElementById("connect-notion").addEventListener("click", function () {
-window.location.href = notionLoginUrl();
+window.location.href = notionLoginUrl(getStoredUserId());
 });
 
 prefillFromStoredProfile();

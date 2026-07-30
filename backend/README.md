@@ -56,9 +56,18 @@ app/
     matching_service.py         # superseded by recommendation_engine.py; kept for its own tests only
   routes/
     auth_routes.py          # Google + Notion OAuth login/callback endpoints
-    match_routes.py          # /api/match/confirm — scores a real pair, books Calendar + Notion, persists Match
+    match_routes.py          # /api/match/confirm, /candidates, /history
+    user_routes.py           # POST /api/users — create/update a profile
 run.py                       # entry point — python run.py
 ```
+
+The frontend (`../profile.html`, `../dashboard.html`, `../matches.html`,
+`../api.js`, `../styles.css`) is static HTML with no build step. It's
+cross-origin from this API (opened via `file://` or a separate static
+server), so `app/__init__.py` sets permissive dev-only CORS headers
+(`Access-Control-Allow-Origin: *`) — every request already carries an
+explicit `user_id` rather than relying on cookies, so this doesn't expose
+anything a same-origin request wouldn't. Not meant for production.
 
 The database schema (`User`/`Course`/`Availability`/`Preference`/`Match`) and
 the compatibility scoring algorithm (`scoring.py`/`ranking.py`/
@@ -78,6 +87,27 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   be missing or fail without blocking confirmation — `calendar_status`/
   `notion_status` reflect what actually happened), then persists a `Match`
   row and returns its `match_id`.
+- `POST /api/users` — creates or updates a profile (name, email, a single
+  course code, weekly availability, optional study style/pace) from the
+  shape `profile.html`'s form actually submits. Looked up by email, so
+  resubmitting the same email updates that user instead of duplicating.
+- `GET /api/match/candidates?user_id=` — ranked list of other users for
+  `matches.html` to render, via `recommendation_engine.find_best_matches()`.
+  Note: it ranks *everyone*, including 0-score pairs — there's no minimum-
+  score cutoff, so very low/no-overlap candidates still appear, just last.
+- `GET /api/match/history?user_id=` — this user's confirmed matches, for
+  `dashboard.html`'s "Your groups" section (repurposed to show real
+  confirmed 1:1 matches — the schema has no multi-person "group" concept).
+
+## Temporary user identification (not real auth)
+
+There's no login system yet. `/api/auth/google/login` and
+`/api/auth/notion/login` accept an optional `?user_id=` query param
+(falls back to `1` if omitted), which the frontend passes after a profile
+is saved so OAuth tokens attach to the right user. **This is not a
+security measure** — nothing stops a request from claiming any `user_id`.
+Real auth (or at minimum an email-based lookup/magic link) is the natural
+next step once there's time.
 
 ## Known gap
 
@@ -94,14 +124,16 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-34 tests cover availability/compatibility scoring, ranking, DB persistence
-(`Match`/`User` CRUD), and the `/api/match/confirm` route (success + real
-persisted `Match`, incompatible pair, unknown user, Calendar/Notion failure
-fallback paths).
+46 tests cover availability/compatibility scoring, ranking, DB persistence
+(`Match`/`User` CRUD), profile creation/update (`POST /api/users`), match
+discovery (`/candidates`, `/history`), the OAuth `user_id` query param, and
+`/api/match/confirm` (success + real persisted `Match`, incompatible pair,
+unknown user, Calendar/Notion failure fallback paths).
 
-Manual check: after setting up OAuth credentials above and seeding at least
-two `User` rows (see `app/database/seed.py`, or `app/services/persistence.py`'s
-`create_user`/`add_availability`/`set_preference`/`enroll_user_in_course`),
-visit `/api/auth/google/login` and `/api/auth/notion/login` in a browser to
-connect each account, then hit `/api/match/confirm` with real `user_id`/
-`partner_id` values per the docstring in `match_routes.py`.
+Manual check, full 3-tab flow: run `python run.py` here, then serve the
+frontend statically from the repo root (e.g. `python -m http.server 8000`)
+and open `http://localhost:8000/profile.html` — create a profile, connect
+Google/Notion if you want real bookings, then repeat with a second
+email/browser profile so there's someone to match with. The Matches tab
+fetches real candidates from `/api/match/candidates`; confirming one shows
+up on the Dashboard tab via `/api/match/history`.

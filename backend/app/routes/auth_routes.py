@@ -15,6 +15,10 @@ auth_bp = Blueprint("auth", __name__)
 def google_login():
     auth_url, state = GoogleCalendarService.get_authorization_url()
     session["oauth_state"] = state
+    # No real login system yet -- this is a temporary stand-in so OAuth
+    # tokens attach to the right user. NOT a security measure: anyone can
+    # pass any user_id. See README.
+    session["oauth_user_id"] = request.args.get("user_id", 1, type=int)
     return redirect(auth_url)
 
 
@@ -32,7 +36,7 @@ def google_callback():
     except Exception:
         return jsonify({"error": "Google token exchange failed"}), 502
 
-    user_id = 1  # TODO: replace with real logged-in user once auth exists
+    user_id = session.get("oauth_user_id", 1)
 
     token = OAuthToken.query.filter_by(user_id=user_id, provider="google_calendar").first()
 
@@ -79,6 +83,8 @@ def get_valid_access_token(user_id, provider="google_calendar"):
 def notion_login():
     state = secrets.token_urlsafe(32)
     session["notion_oauth_state"] = state
+    # Same temporary stand-in as google_login() above -- see README.
+    session["notion_oauth_user_id"] = request.args.get("user_id", 1, type=int)
     auth_url = NotionService.get_authorization_url(state)
     return redirect(auth_url)
 
@@ -97,7 +103,7 @@ def notion_callback():
     except Exception:
         return jsonify({"error": "Notion token exchange failed"}), 502
 
-    user_id = 1  # TODO: replace with real logged-in user once auth exists
+    user_id = session.get("notion_oauth_user_id", 1)
 
     # Notion access tokens don't expire, so refresh_token/expires_at stay
     # None/far-future here - is_expired() on the model will just always

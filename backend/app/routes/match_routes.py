@@ -17,8 +17,8 @@ from flask import Blueprint, request, jsonify
 from app.routes.auth_routes import get_valid_access_token
 from app.services.google_calendar_service import GoogleCalendarService
 from app.services.notion_service import NotionService
-from app.services.recommendation_engine import calculate_score
-from app.services.persistence import get_user, save_match
+from app.services.recommendation_engine import calculate_score, find_best_matches
+from app.services.persistence import get_user, save_match, get_all_users, get_matches
 
 match_bp = Blueprint("match", __name__)
 
@@ -28,6 +28,57 @@ def ping():
     """Sanity check route: hit /api/match/ping to confirm the blueprint
     is registered and the server is running."""
     return jsonify({"status": "match blueprint alive"})
+
+
+@match_bp.route("/candidates")
+def candidates():
+    """
+    GET /api/match/candidates?user_id=1
+
+    Ranked list of the best-scoring other users for this user, powered by
+    recommendation_engine.find_best_matches(). Response:
+        {"candidates": [{"user": {...}, "score": 82.5, "reasons": [...]}, ...]}
+    """
+    user_id = request.args.get("user_id", type=int)
+    if user_id is None:
+        return jsonify({"error": "user_id query param is required"}), 400
+
+    user = get_user(user_id)
+    if user is None:
+        return jsonify({"error": "user_id must reference an existing user"}), 404
+
+    all_users = get_all_users()
+    return jsonify({"candidates": find_best_matches(user, all_users)}), 200
+
+
+@match_bp.route("/history")
+def history():
+    """
+    GET /api/match/history?user_id=1
+
+    This user's confirmed matches -- who with, and the score at
+    confirmation time. Response:
+        {"matches": [{"match_id": 5, "partner_name": "Bob", "score": 82.5}, ...]}
+    """
+    user_id = request.args.get("user_id", type=int)
+    if user_id is None:
+        return jsonify({"error": "user_id query param is required"}), 400
+
+    user = get_user(user_id)
+    if user is None:
+        return jsonify({"error": "user_id must reference an existing user"}), 404
+
+    confirmed = get_matches(user_id=user_id, status="confirmed")
+    results = []
+    for match in confirmed:
+        partner = match.user_b if match.user_a_id == user_id else match.user_a
+        results.append({
+            "match_id": match.id,
+            "partner_name": partner.name,
+            "score": match.score,
+            "created_at": match.created_at.isoformat(),
+        })
+    return jsonify({"matches": results}), 200
 
 
 @match_bp.route("/confirm", methods=["POST"])
