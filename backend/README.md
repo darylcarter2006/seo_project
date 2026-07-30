@@ -91,6 +91,10 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   course code, weekly availability, optional study style/pace) from the
   shape `profile.html`'s form actually submits. Looked up by email, so
   resubmitting the same email updates that user instead of duplicating.
+  `profile.html` also has an "Apply one time range to all checked days"
+  bulk-fill control above the per-day fields, purely client-side (fills
+  the same per-day inputs `buildAvailability()` already reads — no new
+  request shape).
 - `GET /api/users/<user_id>/connections` — which OAuth providers
   (`google_calendar`, `notion`) this user currently has a valid connection
   for, so `profile.html` can show "✓ connected" instead of a plain

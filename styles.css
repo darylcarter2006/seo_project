@@ -331,6 +331,29 @@ background: #FBFDFE;
 margin-bottom: 6px;
 }
 
+.bulk-availability {
+background: #F3F6F8;
+border: 1px solid var(--rule);
+border-radius: 8px;
+padding: 12px 14px;
+margin-bottom: 14px;
+}
+.bulk-availability label {
+text-transform: none;
+font-weight: 500;
+color: var(--ink);
+margin-bottom: 8px;
+}
+.bulk-availability-row {
+display: flex;
+align-items: center;
+gap: 10px;
+flex-wrap: wrap;
+}
+.bulk-availability-row .btn-secondary {
+margin-left: auto;
+}
+
 .avail-row {
 display: flex;
 align-items: center;

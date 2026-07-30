@@ -50,6 +50,13 @@
 <div class="field">
 <label>Weekly availability</label>
 <p class="panel-sub">Check each day you're free and set a time range.</p>
+<div class="bulk-availability">
+<label for="bulk-start">Apply one time range to all checked days</label>
+<div class="bulk-availability-row">
+<input type="time" id="bulk-start"> to <input type="time" id="bulk-end">
+<button type="button" class="btn-secondary" id="apply-bulk-time">Apply to all checked days</button>
+</div>
+</div>
 <div id="availability-builder">
 <div class="avail-row" data-day="monday">
 <label><input type="checkbox" class="avail-day"> Monday</label>
@@ -210,6 +217,18 @@ if (requiredNote) requiredNote.style.display = "none";
 }).catch(function (err) {
 errorNote.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
 errorNote.style.display = "block";
+});
+});
+
+document.getElementById("apply-bulk-time").addEventListener("click", function () {
+var start = document.getElementById("bulk-start").value;
+var end = document.getElementById("bulk-end").value;
+if (!start || !end) return;
+dayRows().forEach(function (row) {
+if (row.querySelector(".avail-day").checked) {
+row.querySelector(".avail-start").value = start;
+row.querySelector(".avail-end").value = end;
+}
 });
 });
 
