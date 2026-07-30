@@ -21,6 +21,7 @@ window.location.href = "profile.html?required=1";
 <h1>Study Group Matcher</h1>
 <span class="term">Summer 2026</span>
 </div>
+<p id="current-user-note" class="current-user"></p>
 
 <nav class="tabs" aria-label="Screens">
 <a class="tab" href="profile.html" >1 · Profile</a>
@@ -47,6 +48,8 @@ window.location.href = "profile.html?required=1";
 </div>
 
 <script>
+renderCurrentUserBadge();
+
 (function () {
 var profile = getStoredProfile();
 var userId = getStoredUserId();

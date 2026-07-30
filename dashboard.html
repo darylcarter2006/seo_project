@@ -21,6 +21,7 @@ window.location.href = "profile.html?required=1";
 <h1>Study Group Matcher</h1>
 <span class="term">Summer 2026</span>
 </div>
+<p id="current-user-note" class="current-user"></p>
 
 <nav class="tabs" aria-label="Screens">
 <a class="tab" href="profile.html" >1 · Profile</a>
@@ -43,6 +44,14 @@ window.location.href = "profile.html?required=1";
 
 <div id="pending-list"></div>
 
+<p class="panel-title">Sent invites</p>
+<p class="panel-sub">Invites you've proposed that are still waiting on a response.</p>
+
+<p id="sent-loading" class="note">Loading sent invites…</p>
+<p id="sent-empty" class="note" style="display:none;">No sent invites waiting on a response.</p>
+
+<div id="sent-list"></div>
+
 <p class="panel-title">Confirmed matches</p>
 
 <p id="groups-loading" class="note">Loading your confirmed matches…</p>
@@ -60,6 +69,8 @@ window.location.href = "profile.html?required=1";
 </div>
 
 <script>
+renderCurrentUserBadge();
+
 pingBackend().then(function (ok) {
 var el = document.getElementById("backend-status");
 if (!el) return;
@@ -165,6 +176,48 @@ pendingEmpty.textContent = "Could not reach backend at " + API_BASE + " (" + err
 pendingEmpty.style.display = "block";
 });
 
+var sentLoading = document.getElementById("sent-loading");
+var sentEmpty = document.getElementById("sent-empty");
+var sentList = document.getElementById("sent-list");
+
+function renderSentCard(invite) {
+var card = document.createElement("div");
+card.className = "group-card pending";
+
+card.innerHTML =
+'<div class="group-info">' +
+'<p class="group-name">Invite to ' + invite.partner_name + '</p>' +
+'<p class="group-meta">Match score ' + Math.round(invite.score) + '%</p>' +
+'<p class="match-status">Waiting for ' + invite.partner_name + ' to respond.</p>' +
+'</div>';
+
+return card;
+}
+
+getSentMatches(userId).then(function (result) {
+sentLoading.style.display = "none";
+
+if (!result.ok) {
+sentEmpty.textContent = "Could not load sent invites: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+sentEmpty.style.display = "block";
+return;
+}
+
+var invites = result.data.sent || [];
+if (!invites.length) {
+sentEmpty.style.display = "block";
+return;
+}
+
+invites.forEach(function (invite) {
+sentList.appendChild(renderSentCard(invite));
+});
+}).catch(function (err) {
+sentLoading.style.display = "none";
+sentEmpty.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + ").";
+sentEmpty.style.display = "block";
+});
+
 var ACCENTS = ["bio", "calc", "hist"];
 var loading = document.getElementById("groups-loading");
 var empty = document.getElementById("groups-empty");
@@ -182,7 +235,35 @@ card.innerHTML =
 '<div class="group-info">' +
 '<p class="group-name">Study session with ' + match.partner_name + '</p>' +
 '<p class="group-meta">Confirmed ' + when + ' &nbsp;·&nbsp; match score ' + Math.round(match.score) + '%</p>' +
+'<p class="group-meta">' + match.partner_email + '</p>' +
+'<div class="pending-actions">' +
+'<button type="button" class="btn-secondary cancel-btn">Cancel</button>' +
+'</div>' +
+'<p class="match-status"></p>' +
 '</div>';
+
+var status = card.querySelector(".match-status");
+var cancelBtn = card.querySelector(".cancel-btn");
+
+cancelBtn.addEventListener("click", function () {
+cancelBtn.disabled = true;
+status.textContent = "Cancelling...";
+status.className = "match-status";
+
+cancelMatch(match.match_id, userId).then(function (result) {
+if (!result.ok) {
+status.textContent = "Error: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+status.className = "match-status error";
+cancelBtn.disabled = false;
+return;
+}
+card.remove();
+}).catch(function (err) {
+status.textContent = "Could not reach backend (" + err.message + ").";
+status.className = "match-status error";
+cancelBtn.disabled = false;
+});
+});
 
 return card;
 }

@@ -4,6 +4,8 @@ app/models/match_proposal.py
 Holds the session details (start_time/end_time/topic/notion_parent_page_id)
 a proposer submits with a match, until the invited partner accepts and
 those details are actually needed to book the Calendar event/Notion page.
+Also holds the resulting google_calendar_event_id once booked, so a later
+cancellation can delete the actual Calendar event, not just flip a status.
 
 Deliberately a separate table rather than new columns on Match -- Match's
 schema is owned by Manuel and stays untouched; this is purely additive.
@@ -21,6 +23,7 @@ class MatchProposal(db.Model):
     end_time = db.Column(db.DateTime, nullable=False)
     topic = db.Column(db.String(200), nullable=True)
     notion_parent_page_id = db.Column(db.String(200), nullable=True)
+    google_calendar_event_id = db.Column(db.String(200), nullable=True)
 
     match = db.relationship("Match")
 

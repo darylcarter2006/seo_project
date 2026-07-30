@@ -92,6 +92,7 @@ def test_history_returns_only_confirmed_matches_for_user(app):
     matches = response.get_json()["matches"]
     assert len(matches) == 1
     assert matches[0]["partner_name"] == "Bob"
+    assert matches[0]["partner_email"] == "bob@example.edu"
     assert matches[0]["score"] == 90.0
 
 

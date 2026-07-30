@@ -217,3 +217,28 @@ def test_pending_missing_user_returns_404(app):
     client = app.test_client()
     response = client.get("/api/match/pending?user_id=999999")
     assert response.status_code == 404
+
+
+def test_sent_only_returns_matches_where_user_is_proposer(app):
+    course = get_or_create_course("CS101", "Intro to CS")
+    alice = make_user("Alice", "alice@example.edu", [(0, 14, 16)], "quiet", 3, course)
+    bob = make_user("Bob", "bob@example.edu", [(0, 14, 16)], "quiet", 3, course)
+    cleo = make_user("Cleo", "cleo@example.edu", [(0, 14, 16)], "quiet", 3, course)
+
+    _propose(alice, bob)   # alice is the proposer (user_a) here
+    _propose(cleo, alice)  # alice is the invited side (user_b) here -- must not appear
+
+    client = app.test_client()
+    response = client.get(f"/api/match/sent?user_id={alice.id}")
+
+    assert response.status_code == 200
+    sent = response.get_json()["sent"]
+    assert len(sent) == 1
+    assert sent[0]["partner_name"] == "Bob"
+    assert sent[0]["match_id"] is not None
+
+
+def test_sent_missing_user_returns_404(app):
+    client = app.test_client()
+    response = client.get("/api/match/sent?user_id=999999")
+    assert response.status_code == 404

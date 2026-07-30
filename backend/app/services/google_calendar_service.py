@@ -110,3 +110,17 @@ class GoogleCalendarService:
         except Exception as e:
             print(f"Failed to create calendar event: {e}")
             return None
+
+    @staticmethod
+    def delete_calendar_event(access_token, event_id):
+        """Best-effort delete -- same try/except-return-None-on-failure
+        pattern as create_calendar_event(). Returns True on success, None
+        on failure (missing/already-deleted event, expired token, etc.)."""
+        try:
+            creds = Credentials(token=access_token)
+            service = build("calendar", "v3", credentials=creds)
+            service.events().delete(calendarId="primary", eventId=event_id).execute()
+            return True
+        except Exception as e:
+            print(f"Failed to delete calendar event: {e}")
+            return None

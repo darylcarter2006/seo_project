@@ -70,6 +70,15 @@ def get_match_proposal(match_id):
     return MatchProposal.query.filter_by(match_id=match_id).first()
 
 
+def set_match_proposal_event_id(match_id, event_id):
+    proposal = get_match_proposal(match_id)
+    if not proposal:
+        return None
+    proposal.google_calendar_event_id = event_id
+    db.session.commit()
+    return proposal
+
+
 # --- User / supporting persistence ---
 
 def create_user(name, email):

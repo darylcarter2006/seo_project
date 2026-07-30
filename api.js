@@ -5,7 +5,9 @@
  *   GET  /api/match/ping
  *   POST /api/match/confirm          -- proposes a pending match, books nothing yet
  *   POST /api/match/<id>/respond     -- invited partner accepts/declines; booking happens on accept
+ *   POST /api/match/<id>/cancel      -- either participant cancels a confirmed match
  *   GET  /api/match/pending?user_id= -- invites waiting on this user to respond to
+ *   GET  /api/match/sent?user_id=    -- invites this user sent that are still awaiting a response
  *   GET  /api/match/candidates?user_id=
  *   GET  /api/match/history?user_id=
  *   POST /api/users
@@ -31,6 +33,13 @@ function getStoredProfile() {
 
 function saveProfile(profile) {
     localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+}
+
+function renderCurrentUserBadge(elementId) {
+    var el = document.getElementById(elementId || "current-user-note");
+    if (!el) return;
+    var profile = getStoredProfile();
+    el.textContent = profile && profile.name ? "Logged in as " + profile.name : "No profile yet";
 }
 
 function getStoredUserId() {
@@ -153,6 +162,36 @@ async function respondToMatch(matchId, responseValue, respondingUserId) {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ response: responseValue, responding_user_id: respondingUserId }),
     });
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function cancelMatch(matchId, userId) {
+    const res = await fetch(API_BASE + "/api/match/" + encodeURIComponent(matchId) + "/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+    });
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function getSentMatches(userId) {
+    const res = await fetch(API_BASE + "/api/match/sent?user_id=" + encodeURIComponent(userId));
 
     let data = {};
     try {

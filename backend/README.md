@@ -57,7 +57,7 @@ app/
     matching_service.py         # superseded by recommendation_engine.py; kept for its own tests only
   routes/
     auth_routes.py          # Google + Notion OAuth login/callback endpoints
-    match_routes.py          # /api/match/confirm, /<id>/respond, /pending, /candidates, /history
+    match_routes.py          # /api/match/confirm, /<id>/respond, /<id>/cancel, /pending, /sent, /candidates, /history
     user_routes.py           # POST /api/users, GET /<id>/connections
 run.py                       # entry point — python run.py
 ```
@@ -93,9 +93,20 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   graceful-degradation as before (`calendar_status`/`notion_status`
   reflect what actually happened; a missing connection or failed API call
   never blocks acceptance).
+- `POST /api/match/<match_id>/cancel` — either participant can cancel a
+  `confirmed` match (403 for a non-participant, 400 if it isn't currently
+  confirmed). Best-effort deletes the actual Google Calendar event using
+  the event id captured at accept time; a missing event id, missing
+  connection, or failed delete never blocks cancellation, just shows up
+  as `calendar_event_deleted: false` in the response. Sets `status="cancelled"`.
 - `GET /api/match/pending?user_id=` — invites waiting on this user to
   accept/decline (matches where they're the invited side and still
   pending), for `dashboard.html`'s "Pending invites" section.
+- `GET /api/match/sent?user_id=` — invites this user proposed that are
+  still awaiting the other person's response (the mirror image of
+  `/pending` — matches where they're the proposer, not the invited side),
+  for `dashboard.html`'s "Sent invites" section, so a proposer isn't left
+  with zero visibility into invites they sent.
 - `POST /api/users` — creates or updates a profile (name, email, a single
   course code, weekly availability, optional study style/pace) from the
   shape `profile.html`'s form actually submits. Looked up by email, so
@@ -119,9 +130,11 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   that school, including 0-score pairs — there's no minimum-score cutoff,
   so very low/no-overlap candidates still appear, just last.
 - `GET /api/match/history?user_id=` — this user's **confirmed** matches
-  (i.e. the invited partner actually accepted), for `dashboard.html`'s
-  confirmed-matches section — the schema has no multi-person "group"
-  concept, so this shows 1:1 sessions.
+  (i.e. the invited partner actually accepted), including `partner_email`
+  alongside `partner_name` so `dashboard.html` can show a way to actually
+  contact your matched partner directly instead of digging through the
+  Calendar invite email — the schema has no multi-person "group" concept,
+  so this shows 1:1 sessions.
 
 ## Temporary user identification (not real auth)
 
@@ -165,6 +178,16 @@ since the endpoint was first built). That's now a two-step flow:
 new columns on `Match` — `Match`'s schema belongs to Manuel and stays
 untouched; this is purely additive and only exists to bridge the gap
 between proposing a session time and actually needing it at accept time.
+It also stores `google_calendar_event_id` once a Calendar event is
+successfully booked, for the same "don't touch `Match`" reason — this is
+what `POST /api/match/<match_id>/cancel` uses to actually delete the
+Calendar event later, not just flip a status in our own DB.
+
+**Dev note:** `MatchProposal` gained the `google_calendar_event_id` column
+after some of you may have already created `instance/study_partner.db` —
+there's no migrations tool here (see `migrations.py`'s docstring), so if
+you hit a "no such column" error, delete that sqlite file and let
+`init_db()` recreate it (or re-run `python -m app.database.seed` after).
 
 ## Design decision: school-scoping by email domain
 
@@ -218,6 +241,15 @@ To try it: run the seed script, then hit `/api/match/candidates?user_id=1`
 confirm the actual id via `sqlite3 instance/study_partner.db "select id, email from user;"`
 if you've seeded before) and you should see a spread of scores, not all-or-nothing.
 
+## Who's logged in
+
+Since there's no login system, `profile.html`, `dashboard.html`, and
+`matches.html` all show a small "Logged in as {name}" line under the
+masthead (or "No profile yet"), reading from the same `getStoredProfile()`
+`localStorage` helper everything else already uses — purely so a live
+demo with multiple people isn't confusing about whose view is on screen.
+No backend involved.
+
 ## Known UX limitation: stale profile-form data between users
 
 `profile.html` prefills the name/email/course/availability fields from a
@@ -257,15 +289,17 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-72 tests cover availability/compatibility scoring and overlapping-window
+81 tests cover availability/compatibility scoring and overlapping-window
 computation, ranking, DB persistence (`Match`/`User` CRUD), profile
 creation/update (`POST /api/users`), connection status, match discovery
-including the same-school hard filter (`/candidates`, `/history`,
-`/pending`), the OAuth `user_id` query param and redirect-on-callback
-behavior, the seed script's idempotency, proposing a match (pending,
-books nothing), and the full accept/decline flow (`/respond`) including
-the wrong-responder 403, already-responded 400, and the partner's email
-landing in `attendee_emails` on accept.
+including the same-school hard filter and `partner_email` (`/candidates`,
+`/history`, `/pending`, `/sent`), the OAuth `user_id` query param and
+redirect-on-callback behavior, the seed script's idempotency, proposing a
+match (pending, books nothing), the full accept/decline flow (`/respond`)
+including the wrong-responder 403, already-responded 400, and the
+partner's email landing in `attendee_emails` on accept, and cancelling a
+confirmed match (`/cancel`) including the best-effort Calendar-delete
+paths (succeeds, fails, no stored event id) and the non-participant 403.
 
 Manual check, full 3-tab flow: run `python -m app.database.seed` to get demo
 users in place, then `python run.py`, then serve the frontend statically
@@ -274,6 +308,8 @@ from the repo root (e.g. `python -m http.server 8000`) and open
 `@example.edu` email so it's visible to the seeded demo users, or just log
 in as one of them directly. The Matches tab fetches real (same-school)
 candidates (with actual overlap windows) from `/api/match/candidates`;
-proposing one sends a pending invite, which the partner must accept from
-their own Dashboard tab's "Pending invites" section before it shows up as
-confirmed via `/api/match/history`.
+proposing one sends a pending invite, visible on the proposer's own
+Dashboard tab under "Sent invites" and on the partner's Dashboard tab
+under "Pending invites" (with Accept/Decline) until they respond, then it
+shows up as confirmed via `/api/match/history` (with a Cancel button and
+the partner's email) on both.

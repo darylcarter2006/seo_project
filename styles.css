@@ -67,6 +67,13 @@
     letter-spacing: 0.08em;
   }
 
+  .current-user {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 0.75rem;
+    color: var(--ink-soft);
+    margin: -18px 0 16px;
+  }
+
   /* Tab strip styled as planner divider tabs */
   .tabs {
     display: flex;

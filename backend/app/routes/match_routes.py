@@ -32,6 +32,7 @@ from app.services.persistence import (
     update_match_status,
     save_match_proposal,
     get_match_proposal,
+    set_match_proposal_event_id,
     email_domain,
 )
 
@@ -81,7 +82,8 @@ def history():
     confirmation time. Only matches that actually went through full
     acceptance (see /respond) show up here, not just proposed ones.
     Response:
-        {"matches": [{"match_id": 5, "partner_name": "Bob", "score": 82.5}, ...]}
+        {"matches": [{"match_id": 5, "partner_name": "Bob",
+         "partner_email": "bob@example.edu", "score": 82.5}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
     if user_id is None:
@@ -98,6 +100,7 @@ def history():
         results.append({
             "match_id": match.id,
             "partner_name": partner.name,
+            "partner_email": partner.email,
             "score": match.score,
             "created_at": match.created_at.isoformat(),
         })
@@ -135,6 +138,36 @@ def pending():
     return jsonify({"pending": results}), 200
 
 
+@match_bp.route("/sent")
+def sent():
+    """
+    GET /api/match/sent?user_id=1
+
+    Invites this user proposed that are still waiting on the other person
+    to respond -- matches where user_id is the proposer (user_a_id) and
+    status is still "pending". The mirror image of /pending.
+    Response:
+        {"sent": [{"match_id": 5, "partner_name": "Bob" (the invited person),
+         "score": 82.5, "created_at": "..."}, ...]}
+    """
+    user_id = request.args.get("user_id", type=int)
+    if user_id is None:
+        return jsonify({"error": "user_id query param is required"}), 400
+
+    user = get_user(user_id)
+    if user is None:
+        return jsonify({"error": "user_id must reference an existing user"}), 404
+
+    proposed = [m for m in get_matches(user_id=user_id, status="pending") if m.user_a_id == user_id]
+    results = [{
+        "match_id": m.id,
+        "partner_name": m.user_b.name,
+        "score": m.score,
+        "created_at": m.created_at.isoformat(),
+    } for m in proposed]
+    return jsonify({"sent": results}), 200
+
+
 def _book_session(match, proposal):
     """
     Books the Calendar event + Notion page for a match that was just
@@ -165,6 +198,8 @@ def _book_session(match, proposal):
         if event:
             calendar_status = "booked"
             meet_link = event.get("hangoutLink")
+            if event.get("id"):
+                set_match_proposal_event_id(match.id, event.get("id"))
         # else: create_calendar_event already logged why it failed; we fall
         # through with calendar_status left as "pending calendar confirmation"
     # else: initiator hasn't connected Google yet - same graceful-degrade
@@ -326,3 +361,57 @@ def respond_to_match(match_id):
     if notes_page_url:
         response["notes_page_url"] = notes_page_url
     return jsonify(response), 200
+
+
+@match_bp.route("/<int:match_id>/cancel", methods=["POST"])
+def cancel_match(match_id):
+    """
+    POST /api/match/<match_id>/cancel
+
+    Either participant (user_a or user_b) can cancel a confirmed match.
+    Body: {"user_id": 2}
+
+    Best-effort deletes the actual Google Calendar event too, using the
+    event id captured at accept time (MatchProposal.google_calendar_event_id)
+    -- but a missing event id, missing connection, or failed delete never
+    blocks cancellation; it's just noted in the response.
+
+    Response (200):
+        {"status": "cancelled", "match_id": 5, "calendar_event_deleted": true}
+
+    404 if match_id doesn't exist. 403 if user_id isn't a participant.
+    400 if the match isn't currently confirmed.
+    """
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+
+    match = get_match(match_id)
+    if match is None:
+        return jsonify({"error": "match_id not found"}), 404
+
+    if user_id not in (match.user_a_id, match.user_b_id):
+        return jsonify({"error": "only a participant in this match can cancel it"}), 403
+
+    if match.status != "confirmed":
+        return jsonify({"error": "only a confirmed match can be cancelled"}), 400
+
+    # Best-effort: the initiator (user_a) is whose calendar the event lives
+    # on, same as _book_session() -- a missing token/event id/API failure
+    # never blocks cancelling the match in our own DB.
+    calendar_event_deleted = False
+    proposal = get_match_proposal(match_id)
+    if proposal and proposal.google_calendar_event_id:
+        access_token = get_valid_access_token(match.user_a_id, provider="google_calendar")
+        if access_token:
+            deleted = GoogleCalendarService.delete_calendar_event(
+                access_token, proposal.google_calendar_event_id
+            )
+            calendar_event_deleted = bool(deleted)
+
+    update_match_status(match_id, "cancelled")
+
+    return jsonify({
+        "status": "cancelled",
+        "match_id": match.id,
+        "calendar_event_deleted": calendar_event_deleted,
+    }), 200
