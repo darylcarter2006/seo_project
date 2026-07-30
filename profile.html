@@ -28,6 +28,9 @@
 <p class="panel-sub">Tell us what you're studying and when you're free, so we can find your people!</p>
 
 <p id="profile-required-note" class="note error" style="display:none;"><b>Profile required.</b> Create and save a profile below before you can access the Dashboard or Matches tabs.</p>
+<p id="oauth-status-note" class="note" style="display:none;"></p>
+
+<p class="link-row">Setting up a profile for someone else on this device? <a href="#" id="new-profile-link">New profile / not you?</a></p>
 
 <form id="profile-form">
 <div class="field">
@@ -37,6 +40,7 @@
 <div class="field">
 <label for="email">Email address</label>
 <input type="email" id="email" placeholder="you@school.edu">
+<p class="field-hint">Using someone else's info here? <a href="#" class="new-profile-link">Clear the form first</a> — submitting a different person's email under a stale form can silently overwrite their saved profile.</p>
 </div>
 <div class="field">
 <label for="course_code">Course code</label>
@@ -102,11 +106,45 @@ var form = document.getElementById("profile-form");
 var savedNote = document.getElementById("profile-saved-note");
 var errorNote = document.getElementById("profile-error-note");
 var requiredNote = document.getElementById("profile-required-note");
+var oauthStatusNote = document.getElementById("oauth-status-note");
 
 var params = new URLSearchParams(window.location.search);
 if (params.get("required") === "1" && requiredNote) {
 requiredNote.style.display = "block";
 }
+
+var connected = params.get("connected");
+if (connected && oauthStatusNote) {
+oauthStatusNote.textContent = (connected === "google" ? "Google Calendar" : "Notion") + " connected.";
+oauthStatusNote.className = "note ok";
+oauthStatusNote.style.display = "block";
+} else if (params.get("connection_error") === "1" && oauthStatusNote) {
+oauthStatusNote.textContent = "Could not connect that account. Please try again.";
+oauthStatusNote.className = "note error";
+oauthStatusNote.style.display = "block";
+}
+
+function clearProfileForm() {
+document.getElementById("name").value = "";
+document.getElementById("email").value = "";
+document.getElementById("course_code").value = "";
+dayRows().forEach(function (row) {
+row.querySelector(".avail-day").checked = false;
+row.querySelector(".avail-start").value = "";
+row.querySelector(".avail-end").value = "";
+});
+localStorage.removeItem("studyProfile");
+localStorage.removeItem("studyUserId");
+savedNote.style.display = "none";
+errorNote.style.display = "none";
+}
+
+Array.prototype.slice.call(document.querySelectorAll(".new-profile-link, #new-profile-link")).forEach(function (link) {
+link.addEventListener("click", function (event) {
+event.preventDefault();
+clearProfileForm();
+});
+});
 
 function dayRows() {
 return Array.prototype.slice.call(document.querySelectorAll(".avail-row"));

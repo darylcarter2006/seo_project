@@ -109,6 +109,34 @@ security measure** — nothing stops a request from claiming any `user_id`.
 Real auth (or at minimum an email-based lookup/magic link) is the natural
 next step once there's time.
 
+After the OAuth redirect completes (success or failure), the backend sends
+the browser back to `{FRONTEND_BASE_URL}/profile.html` (configurable via
+the `FRONTEND_BASE_URL` env var, default `http://localhost:8000`, dev-only)
+with `?connected=google`/`?connected=notion` or `?connection_error=1`,
+which `profile.html` reads on load to show a status message — instead of
+leaving the user stranded on a bare JSON response.
+
+## Known UX limitation: stale profile-form data between users
+
+`profile.html` prefills the name/email/course/availability fields from a
+single shared `localStorage` key (`studyProfile`) on load, for the
+legitimate case of editing your own existing profile. It does **not**
+auto-clear between different people using the same browser — since
+`POST /api/users` looks up users by email to decide create-vs-update, if a
+second person fills out the form without noticing a first person's email
+is still sitting in the `email` field, submitting **silently overwrites
+the first person's profile** instead of creating a second one. This bit us
+once during testing.
+
+Mitigation shipped: a visible "New profile / not you?" link (top of the
+Profile tab and next to the email field) that explicitly clears the form
+and the `studyProfile`/`studyUserId` localStorage keys, plus an inline
+warning by the email field. It is **not** automatic — auto-clearing on
+every page load would break the "edit my own profile" case — so a user
+who doesn't click it can still hit this. When demoing with multiple
+people on one laptop, always click "New profile / not you?" before
+handing the keyboard to the next person.
+
 ## Known gap
 
 `Match` only stores `user_a_id`/`user_b_id`/`score`/`status` — the Calendar/
@@ -124,11 +152,12 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-46 tests cover availability/compatibility scoring, ranking, DB persistence
+50 tests cover availability/compatibility scoring, ranking, DB persistence
 (`Match`/`User` CRUD), profile creation/update (`POST /api/users`), match
-discovery (`/candidates`, `/history`), the OAuth `user_id` query param, and
-`/api/match/confirm` (success + real persisted `Match`, incompatible pair,
-unknown user, Calendar/Notion failure fallback paths).
+discovery (`/candidates`, `/history`), the OAuth `user_id` query param and
+redirect-on-callback behavior, and `/api/match/confirm` (success + real
+persisted `Match`, incompatible pair, unknown user, Calendar/Notion failure
+fallback paths).
 
 Manual check, full 3-tab flow: run `python run.py` here, then serve the
 frontend statically from the repo root (e.g. `python -m http.server 8000`)

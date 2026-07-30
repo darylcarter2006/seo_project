@@ -381,3 +381,10 @@ line-height: 1.5;
 
 .note.ok { border-left-color: var(--high); }
 .note.error { border-left-color: var(--low); }
+
+.field-hint {
+font-size: 0.78rem;
+color: var(--ink-soft);
+margin: 6px 0 0;
+}
+.field-hint a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; }

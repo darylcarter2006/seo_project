@@ -29,7 +29,8 @@ def test_google_login_user_id_query_param_flows_to_callback(mock_auth_url, mock_
     client.get(f"/api/auth/google/login?user_id={partner.id}")
     response = client.get("/api/auth/google/callback?code=fake-code&state=fake-state")
 
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert response.location == "http://localhost:8000/profile.html?connected=google"
     token = OAuthToken.query.filter_by(provider="google_calendar").first()
     assert token.user_id == partner.id
 
@@ -48,6 +49,51 @@ def test_notion_login_defaults_to_user_id_1_when_missing(mock_exchange, app):
 
     response = client.get(f"/api/auth/notion/callback?code=fake-code&state={state}")
 
-    assert response.status_code == 200
+    assert response.status_code == 302
+    assert response.location == "http://localhost:8000/profile.html?connected=notion"
     token = OAuthToken.query.filter_by(provider="notion").first()
     assert token.user_id == 1
+
+
+def test_google_callback_missing_code_redirects_with_connection_error(app):
+    client = app.test_client()
+    response = client.get("/api/auth/google/callback?state=whatever")
+
+    assert response.status_code == 302
+    assert response.location == "http://localhost:8000/profile.html?connection_error=1"
+
+
+def test_google_callback_bad_state_redirects_with_connection_error(app):
+    client = app.test_client()
+    client.get("/api/auth/google/login")  # sets a real oauth_state in session
+    response = client.get("/api/auth/google/callback?code=fake-code&state=wrong-state")
+
+    assert response.status_code == 302
+    assert response.location == "http://localhost:8000/profile.html?connection_error=1"
+
+
+@patch("app.routes.auth_routes.GoogleCalendarService.exchange_code_for_tokens")
+def test_google_callback_token_exchange_failure_redirects_with_connection_error(mock_exchange, app):
+    mock_exchange.side_effect = Exception("boom")
+
+    client = app.test_client()
+    client.get("/api/auth/google/login")
+    with client.session_transaction() as sess:
+        state = sess["oauth_state"]
+
+    response = client.get(f"/api/auth/google/callback?code=fake-code&state={state}")
+
+    assert response.status_code == 302
+    assert response.location == "http://localhost:8000/profile.html?connection_error=1"
+
+
+def test_notion_callback_missing_code_redirects_with_connection_error(app):
+    client = app.test_client()
+    client.get("/api/auth/notion/login")
+    with client.session_transaction() as sess:
+        state = sess["notion_oauth_state"]
+
+    response = client.get(f"/api/auth/notion/callback?state={state}")
+
+    assert response.status_code == 302
+    assert response.location == "http://localhost:8000/profile.html?connection_error=1"

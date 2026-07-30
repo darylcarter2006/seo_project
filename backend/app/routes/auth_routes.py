@@ -1,7 +1,8 @@
 from datetime import datetime
 import secrets
+from urllib.parse import urlencode
 
-from flask import Blueprint, redirect, request, session, jsonify
+from flask import Blueprint, current_app, redirect, request, session
 
 from app.database.db import db
 from app.services.google_calendar_service import GoogleCalendarService
@@ -9,6 +10,13 @@ from app.services.notion_service import NotionService
 from app.models.oauth_token import OAuthToken
 
 auth_bp = Blueprint("auth", __name__)
+
+
+def _frontend_redirect(**query_params):
+    """Sends the browser back to the frontend's profile page instead of
+    leaving it stranded on a bare JSON response after an OAuth redirect."""
+    base = current_app.config["FRONTEND_BASE_URL"]
+    return redirect(f"{base}/profile.html?{urlencode(query_params)}")
 
 
 @auth_bp.route("/google/login")
@@ -26,15 +34,15 @@ def google_login():
 def google_callback():
     code = request.args.get("code")
     if not code:
-        return jsonify({"error": "Google did not return a code"}), 400
+        return _frontend_redirect(connection_error=1)
 
     if request.args.get("state") != session.get("oauth_state"):
-        return jsonify({"error": "Invalid state parameter"}), 400
+        return _frontend_redirect(connection_error=1)
 
     try:
         tokens = GoogleCalendarService.exchange_code_for_tokens(code)
     except Exception:
-        return jsonify({"error": "Google token exchange failed"}), 502
+        return _frontend_redirect(connection_error=1)
 
     user_id = session.get("oauth_user_id", 1)
 
@@ -57,7 +65,7 @@ def google_callback():
 
     db.session.commit()
 
-    return jsonify({"status": "connected"})
+    return _frontend_redirect(connected="google")
 
 
 def get_valid_access_token(user_id, provider="google_calendar"):
@@ -92,16 +100,16 @@ def notion_login():
 @auth_bp.route("/notion/callback")
 def notion_callback():
     if request.args.get("state") != session.get("notion_oauth_state"):
-        return jsonify({"error": "Invalid state parameter"}), 400
+        return _frontend_redirect(connection_error=1)
 
     code = request.args.get("code")
     if not code:
-        return jsonify({"error": "Notion did not return a code"}), 400
+        return _frontend_redirect(connection_error=1)
 
     try:
         tokens = NotionService.exchange_code_for_tokens(code)
     except Exception:
-        return jsonify({"error": "Notion token exchange failed"}), 502
+        return _frontend_redirect(connection_error=1)
 
     user_id = session.get("notion_oauth_user_id", 1)
 
@@ -124,4 +132,4 @@ def notion_callback():
 
     db.session.commit()
 
-    return jsonify({"status": "connected"})
+    return _frontend_redirect(connected="notion")
