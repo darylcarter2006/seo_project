@@ -7,7 +7,7 @@ no database at all (see tests/test_scoring.py).
 """
 
 from app.database.db import db
-from app.models import User, Course, Availability, Preference, Match
+from app.models import User, Course, Availability, Preference, Match, MatchProposal
 
 
 # --- Match persistence ---
@@ -51,6 +51,23 @@ def update_match_status(match_id, status):
     match.status = status
     db.session.commit()
     return match
+
+
+def save_match_proposal(match_id, start_time, end_time, topic=None, notion_parent_page_id=None):
+    proposal = MatchProposal(
+        match_id=match_id,
+        start_time=start_time,
+        end_time=end_time,
+        topic=topic,
+        notion_parent_page_id=notion_parent_page_id,
+    )
+    db.session.add(proposal)
+    db.session.commit()
+    return proposal
+
+
+def get_match_proposal(match_id):
+    return MatchProposal.query.filter_by(match_id=match_id).first()
 
 
 # --- User / supporting persistence ---

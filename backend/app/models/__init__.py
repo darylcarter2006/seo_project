@@ -1,7 +1,7 @@
 """
 app/models/__init__.py
 Re-exports every model so the rest of the app can do:
-    from app.models import User, Course, Availability, Preference, Match, OAuthToken
+    from app.models import User, Course, Availability, Preference, Match, OAuthToken, MatchProposal
 instead of reaching into individual files. Also ensures every model is
 registered with SQLAlchemy's metadata before db.create_all() runs.
 """
@@ -12,6 +12,7 @@ from app.models.course import Course, user_courses
 from app.models.availability import Availability
 from app.models.preference import Preference
 from app.models.match import Match
+from app.models.match_proposal import MatchProposal
 
 __all__ = [
     "OAuthToken",
@@ -21,4 +22,5 @@ __all__ = [
     "Availability",
     "Preference",
     "Match",
+    "MatchProposal",
 ]

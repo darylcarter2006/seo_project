@@ -1,10 +1,12 @@
 """
 tests/test_match_routes.py
-Exercises POST /api/match/confirm end-to-end. Confirming a match now
-requires both users to already exist in the DB (compatibility scoring
-goes through app/services/recommendation_engine.py against real
-Availability/Course/Preference rows), and a successful confirmation
-persists a Match row via app/services/persistence.py.
+Exercises POST /api/match/confirm -- now a *proposal*, not an immediate
+booking. Confirming a match requires both users to already exist in the DB
+(compatibility scoring goes through app/services/recommendation_engine.py
+against real Availability/Course/Preference rows), creates a
+status="pending" Match, and does NOT call Calendar/Notion until the
+invited partner accepts via POST /api/match/<id>/respond -- see
+test_match_respond.py for the accept/decline half of this flow.
 """
 
 from unittest.mock import patch
@@ -41,62 +43,32 @@ def _payload(user_id, partner_id, **overrides):
     return payload
 
 
-def _token_for_provider(google_token=None, notion_token=None):
-    """get_valid_access_token is called once per provider in the route,
-    so a single flat return_value can't tell Google and Notion apart -
-    this builds a side_effect that answers based on the provider kwarg."""
-    def side_effect(user_id, provider="google_calendar"):
-        if provider == "google_calendar":
-            return google_token
-        if provider == "notion":
-            return notion_token
-        return None
-    return side_effect
-
-
-# Patched where the names are *used* (match_routes), not where they're
-# defined - patching the original module wouldn't affect the reference
-# match_routes already imported.
+@patch("app.routes.match_routes.NotionService.create_shared_page")
 @patch("app.routes.match_routes.GoogleCalendarService.create_calendar_event")
-@patch("app.routes.match_routes.get_valid_access_token")
-def test_successful_confirmation_books_calendar_and_persists_match(
-    mock_get_token, mock_create_event, app
+def test_proposing_a_match_creates_pending_match_and_books_nothing(
+    mock_create_event, mock_create_page, app
 ):
-    mock_get_token.side_effect = _token_for_provider(google_token="fake-access-token")
-    mock_create_event.return_value = {"hangoutLink": "https://meet.google.com/abc-defg-hij"}
-
     user, partner = _compatible_pair()
     client = app.test_client()
     response = client.post("/api/match/confirm", json=_payload(user.id, partner.id))
 
     assert response.status_code == 200
     body = response.get_json()
-    assert body["calendar_status"] == "booked"
-    assert body["meet_link"] == "https://meet.google.com/abc-defg-hij"
-    assert body["notion_status"] == "not connected"  # no notion token in this test
+    assert body["status"] == "pending"
     assert body["score"] > 0
+    assert "calendar_status" not in body
+    assert "notion_status" not in body
+    assert "meet_link" not in body
+    assert "notes_page_url" not in body
 
     matches = get_matches(user_id=user.id)
     assert len(matches) == 1
     assert matches[0].id == body["match_id"]
-    assert matches[0].status == "confirmed"
+    assert matches[0].status == "pending"
     assert matches[0].score == body["score"]
 
-
-@patch("app.routes.match_routes.GoogleCalendarService.create_calendar_event")
-@patch("app.routes.match_routes.get_valid_access_token")
-def test_calendar_failure_falls_back_gracefully(mock_get_token, mock_create_event, app):
-    mock_get_token.side_effect = _token_for_provider(google_token="fake-access-token")
-    mock_create_event.return_value = None  # simulates a Calendar API failure
-
-    user, partner = _compatible_pair()
-    client = app.test_client()
-    response = client.post("/api/match/confirm", json=_payload(user.id, partner.id))
-
-    assert response.status_code == 200  # match is still confirmed
-    body = response.get_json()
-    assert body["calendar_status"] == "pending calendar confirmation"
-    assert "meet_link" not in body
+    mock_create_event.assert_not_called()
+    mock_create_page.assert_not_called()
 
 
 def test_invalid_match_returns_400(app):
@@ -128,50 +100,25 @@ def test_same_user_and_partner_returns_400(app):
     assert response.status_code == 400
 
 
-@patch("app.routes.match_routes.NotionService.create_shared_page")
-@patch("app.routes.match_routes.GoogleCalendarService.create_calendar_event")
-@patch("app.routes.match_routes.get_valid_access_token")
-def test_notion_page_created_when_connected(
-    mock_get_token, mock_create_event, mock_create_page, app
-):
-    mock_get_token.side_effect = _token_for_provider(
-        google_token="fake-google-token", notion_token="fake-notion-token"
-    )
-    mock_create_event.return_value = {"hangoutLink": "https://meet.google.com/abc-defg-hij"}
-    mock_create_page.return_value = {"url": "https://notion.so/study-session-abc123"}
+def test_missing_start_time_returns_400(app):
+    user, partner = _compatible_pair()
+    client = app.test_client()
+    payload = _payload(user.id, partner.id)
+    del payload["start_time"]
 
+    response = client.post("/api/match/confirm", json=payload)
+
+    assert response.status_code == 400
+
+
+def test_end_time_before_start_time_returns_400(app):
     user, partner = _compatible_pair()
     client = app.test_client()
     payload = _payload(
-        user.id, partner.id, notion_parent_page_id="some-parent-page-id", topic="Calc II"
+        user.id, partner.id,
+        start_time="2026-07-22T15:00:00", end_time="2026-07-22T14:00:00",
     )
+
     response = client.post("/api/match/confirm", json=payload)
 
-    assert response.status_code == 200
-    body = response.get_json()
-    assert body["notion_status"] == "created"
-    assert body["notes_page_url"] == "https://notion.so/study-session-abc123"
-    mock_create_page.assert_called_once()
-
-
-@patch("app.routes.match_routes.NotionService.create_shared_page")
-@patch("app.routes.match_routes.GoogleCalendarService.create_calendar_event")
-@patch("app.routes.match_routes.get_valid_access_token")
-def test_notion_failure_does_not_block_match_confirmation(
-    mock_get_token, mock_create_event, mock_create_page, app
-):
-    mock_get_token.side_effect = _token_for_provider(
-        google_token="fake-google-token", notion_token="fake-notion-token"
-    )
-    mock_create_event.return_value = {"hangoutLink": "https://meet.google.com/abc-defg-hij"}
-    mock_create_page.return_value = None  # simulates a Notion API failure
-
-    user, partner = _compatible_pair()
-    client = app.test_client()
-    payload = _payload(user.id, partner.id, notion_parent_page_id="some-parent-page-id")
-    response = client.post("/api/match/confirm", json=payload)
-
-    assert response.status_code == 200  # match still confirmed
-    body = response.get_json()
-    assert body["notion_status"] == "pending notion confirmation"
-    assert "notes_page_url" not in body
+    assert response.status_code == 400

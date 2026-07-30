@@ -144,7 +144,7 @@ end_time: new Date(endVal).toISOString(),
 topic: card.getAttribute("data-topic")
 };
 
-status.textContent = "Confirming with backend...";
+status.textContent = "Sending invite...";
 status.className = "match-status";
 
 confirmMatch(payload).then(function (result) {
@@ -154,15 +154,9 @@ status.className = "match-status error";
 return;
 }
 
-var parts = [
-"status: " + result.data.status,
-"calendar: " + result.data.calendar_status,
-"notion: " + result.data.notion_status
-];
-if (result.data.meet_link) parts.push("meet: " + result.data.meet_link);
-if (result.data.notes_page_url) parts.push("notes: " + result.data.notes_page_url);
-
-status.textContent = parts.join(" | ");
+// Nothing is booked yet at this step -- the invite still needs the
+// partner to accept via POST /api/match/<id>/respond (see dashboard.html).
+status.textContent = "Invite sent to " + user.name + " — waiting for them to accept.";
 status.className = "match-status ok";
 }).catch(function (err) {
 status.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";

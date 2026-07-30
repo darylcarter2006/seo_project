@@ -245,10 +245,13 @@
   .group-card.bio::before { background: var(--bio); }
   .group-card.calc::before { background: var(--calc); }
   .group-card.hist::before { background: var(--hist); }
+  .group-card.pending::before { background: var(--accent); }
 
-  .group-info { padding-left: 8px; }
+  .group-info { padding-left: 8px; width: 100%; }
   .group-name { font-weight: 600; font-size: 0.98rem; margin: 0 0 4px; }
   .group-meta { font-family: 'IBM Plex Mono', monospace; font-size: 0.78rem; color: var(--ink-soft); }
+
+  .pending-actions { display: flex; gap: 10px; margin-top: 10px; }
 
   .btn-new-group {
     width: 100%;

@@ -31,7 +31,7 @@ def create_app(config_class=Config):
 
     # Import every model so it's registered on db.metadata before
     # init_db()'s create_all() runs.
-    from app.models import OAuthToken, User, Course, Availability, Preference, Match  # noqa: F401
+    from app.models import OAuthToken, User, Course, Availability, Preference, Match, MatchProposal  # noqa: F401
 
     init_db(app)
 

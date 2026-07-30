@@ -3,7 +3,9 @@
  * Shared helper for talking to the Study Group Matcher backend.
  * Matches the endpoints implemented on the backend/api branch:
  *   GET  /api/match/ping
- *   POST /api/match/confirm
+ *   POST /api/match/confirm          -- proposes a pending match, books nothing yet
+ *   POST /api/match/<id>/respond     -- invited partner accepts/declines; booking happens on accept
+ *   GET  /api/match/pending?user_id= -- invites waiting on this user to respond to
  *   GET  /api/match/candidates?user_id=
  *   GET  /api/match/history?user_id=
  *   POST /api/users
@@ -121,6 +123,36 @@ async function getConnections(userId) {
 
 async function getMatchHistory(userId) {
     const res = await fetch(API_BASE + "/api/match/history?user_id=" + encodeURIComponent(userId));
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function getPendingMatches(userId) {
+    const res = await fetch(API_BASE + "/api/match/pending?user_id=" + encodeURIComponent(userId));
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function respondToMatch(matchId, responseValue, respondingUserId) {
+    const res = await fetch(API_BASE + "/api/match/" + encodeURIComponent(matchId) + "/respond", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ response: responseValue, responding_user_id: respondingUserId }),
+    });
 
     let data = {};
     try {

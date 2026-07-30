@@ -47,6 +47,7 @@ app/
   models/
     oauth_token.py         # per-user OAuth tokens, user_id FKs to User
     user.py, course.py, availability.py, preference.py, match.py
+    match_proposal.py      # session details (start/end/topic/notion page) for a pending Match
   services/
     google_calendar_service.py  # Google OAuth + Calendar event/Meet link creation
     notion_service.py           # Notion OAuth + shared study-notes page creation
@@ -56,7 +57,7 @@ app/
     matching_service.py         # superseded by recommendation_engine.py; kept for its own tests only
   routes/
     auth_routes.py          # Google + Notion OAuth login/callback endpoints
-    match_routes.py          # /api/match/confirm, /candidates, /history
+    match_routes.py          # /api/match/confirm, /<id>/respond, /pending, /candidates, /history
     user_routes.py           # POST /api/users, GET /<id>/connections
 run.py                       # entry point — python run.py
 ```
@@ -82,11 +83,19 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   page creation
 - Compatibility scoring: weighted availability/course/study-style/pace score
   against real `User` DB rows (`app/services/recommendation_engine.py`)
-- `POST /api/match/confirm` — looks up `user_id`/`partner_id` as real users,
-  scores them, tries to book a Calendar event and a Notion page (either can
-  be missing or fail without blocking confirmation — `calendar_status`/
-  `notion_status` reflect what actually happened), then persists a `Match`
-  row and returns its `match_id`.
+- `POST /api/match/confirm` — **proposes** a match between two existing
+  users as a `status="pending"` invite. Does not book anything yet. See
+  "Two-sided match confirmation" below.
+- `POST /api/match/<match_id>/respond` — only the invited partner may
+  accept or decline a pending match. Declining just marks it `declined`.
+  Accepting is where the Calendar event (inviting the partner as a real
+  attendee) and Notion page actually get created now, with the same
+  graceful-degradation as before (`calendar_status`/`notion_status`
+  reflect what actually happened; a missing connection or failed API call
+  never blocks acceptance).
+- `GET /api/match/pending?user_id=` — invites waiting on this user to
+  accept/decline (matches where they're the invited side and still
+  pending), for `dashboard.html`'s "Pending invites" section.
 - `POST /api/users` — creates or updates a profile (name, email, a single
   course code, weekly availability, optional study style/pace) from the
   shape `profile.html`'s form actually submits. Looked up by email, so
@@ -109,9 +118,10 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   when to schedule instead of guessing. Note: it ranks *everyone* within
   that school, including 0-score pairs — there's no minimum-score cutoff,
   so very low/no-overlap candidates still appear, just last.
-- `GET /api/match/history?user_id=` — this user's confirmed matches, for
-  `dashboard.html`'s "Your groups" section (repurposed to show real
-  confirmed 1:1 matches — the schema has no multi-person "group" concept).
+- `GET /api/match/history?user_id=` — this user's **confirmed** matches
+  (i.e. the invited partner actually accepted), for `dashboard.html`'s
+  confirmed-matches section — the schema has no multi-person "group"
+  concept, so this shows 1:1 sessions.
 
 ## Temporary user identification (not real auth)
 
@@ -129,6 +139,32 @@ the `FRONTEND_BASE_URL` env var, default `http://localhost:8000`, dev-only)
 with `?connected=google`/`?connected=notion` or `?connection_error=1`,
 which `profile.html` reads on load to show a status message — instead of
 leaving the user stranded on a bare JSON response.
+
+## Two-sided match confirmation
+
+Confirming a match used to immediately book the Calendar/Notion resources
+on the initiator's say-so alone — the partner had no say, and their email
+was never even added to the Calendar event (`attendee_emails` sat empty
+since the endpoint was first built). That's now a two-step flow:
+
+1. `POST /api/match/confirm` proposes the match: validates compatibility
+   exactly as before, then saves a `status="pending"` `Match` row plus a
+   `MatchProposal` row holding the session details (`start_time`,
+   `end_time`, `topic`, `notion_parent_page_id`) for later. Nothing is
+   booked.
+2. The invited partner calls `POST /api/match/<match_id>/respond` with
+   `{"response": "accept"}` or `{"response": "decline"}`. Only they can
+   respond (403 otherwise) and only while it's still pending (400 if
+   already responded to). Declining sets `status="declined"`. Accepting
+   is when the Calendar event and Notion page actually get created,
+   pulling the session details back out of `MatchProposal` — and this
+   time `attendee_emails` includes the accepting partner's real email, so
+   both people actually get invited.
+
+`MatchProposal` (`app/models/match_proposal.py`) is a small new table, not
+new columns on `Match` — `Match`'s schema belongs to Manuel and stays
+untouched; this is purely additive and only exists to bridge the gap
+between proposing a session time and actually needing it at accept time.
 
 ## Design decision: school-scoping by email domain
 
@@ -207,9 +243,12 @@ handing the keyboard to the next person.
 
 `Match` only stores `user_a_id`/`user_b_id`/`score`/`status` — the Calendar/
 Notion outcome (`calendar_status`, `meet_link`, `notion_status`,
-`notes_page_url`) is returned in the response but not persisted, so a later
-re-fetch of a past match loses that detail. Extending `Match` with nullable
-columns for those fields is a natural next step.
+`notes_page_url`) from `/respond`'s accept response is not persisted
+anywhere, so a later re-fetch of a confirmed match loses that detail (it's
+not in `Match`, and `MatchProposal` only holds pre-acceptance session
+details, not the booking outcome). Adding a small result table alongside
+`MatchProposal` is a natural next step, for the same "don't touch Match's
+schema" reason `MatchProposal` itself exists.
 
 ## Testing
 
@@ -218,14 +257,15 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-64 tests cover availability/compatibility scoring and overlapping-window
+72 tests cover availability/compatibility scoring and overlapping-window
 computation, ranking, DB persistence (`Match`/`User` CRUD), profile
-creation/update (`POST /api/users`), connection status
-(`GET /<id>/connections`), match discovery including the same-school hard
-filter (`/candidates`, `/history`), the OAuth `user_id` query param and
-redirect-on-callback behavior, the seed script's idempotency, and
-`/api/match/confirm` (success + real persisted `Match`, incompatible pair,
-unknown user, Calendar/Notion failure fallback paths).
+creation/update (`POST /api/users`), connection status, match discovery
+including the same-school hard filter (`/candidates`, `/history`,
+`/pending`), the OAuth `user_id` query param and redirect-on-callback
+behavior, the seed script's idempotency, proposing a match (pending,
+books nothing), and the full accept/decline flow (`/respond`) including
+the wrong-responder 403, already-responded 400, and the partner's email
+landing in `attendee_emails` on accept.
 
 Manual check, full 3-tab flow: run `python -m app.database.seed` to get demo
 users in place, then `python run.py`, then serve the frontend statically
@@ -233,5 +273,7 @@ from the repo root (e.g. `python -m http.server 8000`) and open
 `http://localhost:8000/profile.html` — create a profile with an
 `@example.edu` email so it's visible to the seeded demo users, or just log
 in as one of them directly. The Matches tab fetches real (same-school)
-candidates from `/api/match/candidates`; confirming one shows up on the
-Dashboard tab via `/api/match/history`.
+candidates (with actual overlap windows) from `/api/match/candidates`;
+proposing one sends a pending invite, which the partner must accept from
+their own Dashboard tab's "Pending invites" section before it shows up as
+confirmed via `/api/match/history`.

@@ -1,13 +1,18 @@
 """
 app/routes/match_routes.py
 ----------------------------
-Where the matching engine (Person 2) and the "confirm a match -> book it
-on Calendar" flow (you, Person B) connect.
+Where the matching engine (Person 2) and the "propose a match -> both
+people have to agree before anything's booked" flow (you, Person B)
+connect.
 
 Compatibility scoring is powered by app/services/recommendation_engine.py
 (database schema + weighted scoring algorithm), not raw request-body data
 -- confirming a match requires both users to already exist in the DB with
 real Availability/Course/Preference rows.
+
+A match starts as a "pending" invite (POST /confirm). It only becomes a
+real Calendar event + Notion page once the invited partner accepts it via
+POST /<match_id>/respond -- see that route's docstring for why.
 """
 
 from datetime import datetime
@@ -18,7 +23,17 @@ from app.routes.auth_routes import get_valid_access_token
 from app.services.google_calendar_service import GoogleCalendarService
 from app.services.notion_service import NotionService
 from app.services.recommendation_engine import calculate_score, find_best_matches
-from app.services.persistence import get_user, save_match, get_all_users, get_matches, email_domain
+from app.services.persistence import (
+    get_user,
+    get_all_users,
+    get_matches,
+    get_match,
+    save_match,
+    update_match_status,
+    save_match_proposal,
+    get_match_proposal,
+    email_domain,
+)
 
 match_bp = Blueprint("match", __name__)
 
@@ -63,7 +78,9 @@ def history():
     GET /api/match/history?user_id=1
 
     This user's confirmed matches -- who with, and the score at
-    confirmation time. Response:
+    confirmation time. Only matches that actually went through full
+    acceptance (see /respond) show up here, not just proposed ones.
+    Response:
         {"matches": [{"match_id": 5, "partner_name": "Bob", "score": 82.5}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
@@ -87,14 +104,103 @@ def history():
     return jsonify({"matches": results}), 200
 
 
+@match_bp.route("/pending")
+def pending():
+    """
+    GET /api/match/pending?user_id=2
+
+    Invites waiting on this user to respond to -- matches where user_id is
+    the invited partner (user_b_id) and status is still "pending". A match
+    this user proposed themselves (where they're user_a) never appears
+    here, even while pending -- it's not waiting on them.
+    Response:
+        {"pending": [{"match_id": 5, "partner_name": "Alice" (the proposer),
+         "score": 82.5, "created_at": "..."}, ...]}
+    """
+    user_id = request.args.get("user_id", type=int)
+    if user_id is None:
+        return jsonify({"error": "user_id query param is required"}), 400
+
+    user = get_user(user_id)
+    if user is None:
+        return jsonify({"error": "user_id must reference an existing user"}), 404
+
+    invites = [m for m in get_matches(user_id=user_id, status="pending") if m.user_b_id == user_id]
+    results = [{
+        "match_id": m.id,
+        "partner_name": m.user_a.name,
+        "score": m.score,
+        "created_at": m.created_at.isoformat(),
+    } for m in invites]
+    return jsonify({"pending": results}), 200
+
+
+def _book_session(match, proposal):
+    """
+    Books the Calendar event + Notion page for a match that was just
+    accepted, using the proposer's (match.user_a) OAuth connections and
+    inviting the accepting partner (match.user_b) as a real Calendar
+    attendee. Graceful degradation, same as the old confirm_match: a
+    missing connection or failed API call never blocks acceptance --
+    calendar_status/notion_status just reflect what actually happened.
+
+    Returns (calendar_status, meet_link, notion_status, notes_page_url).
+    """
+    initiator_id = match.user_a_id
+    partner = match.user_b
+
+    access_token = get_valid_access_token(initiator_id, provider="google_calendar")
+
+    calendar_status = "pending calendar confirmation"
+    meet_link = None
+
+    if access_token:
+        event = GoogleCalendarService.create_calendar_event(
+            access_token,
+            summary="Study Session",
+            start_time=proposal.start_time,
+            end_time=proposal.end_time,
+            attendee_emails=[partner.email],
+        )
+        if event:
+            calendar_status = "booked"
+            meet_link = event.get("hangoutLink")
+        # else: create_calendar_event already logged why it failed; we fall
+        # through with calendar_status left as "pending calendar confirmation"
+    # else: initiator hasn't connected Google yet - same graceful-degrade
+    # path as an API failure, so acceptance still succeeds either way.
+
+    notion_token = get_valid_access_token(initiator_id, provider="notion")
+
+    notion_status = "not connected"
+    notes_page_url = None
+
+    if notion_token and proposal.notion_parent_page_id:
+        page = NotionService.create_shared_page(
+            notion_token,
+            parent_page_id=proposal.notion_parent_page_id,
+            topic=proposal.topic or "Study Session",
+            student_a_name=match.user_a.name,
+            student_b_name=partner.name,
+        )
+        if page:
+            notion_status = "created"
+            notes_page_url = page.get("url")
+        else:
+            notion_status = "pending notion confirmation"
+    elif notion_token and not proposal.notion_parent_page_id:
+        notion_status = "pending notion confirmation"  # connected but no parent page given
+
+    return calendar_status, meet_link, notion_status, notes_page_url
+
+
 @match_bp.route("/confirm", methods=["POST"])
 def confirm_match():
     """
-    Confirms a proposed study-pair match between two existing users. If the
-    requesting user has a connected Google account, books a Calendar event
-    with a Meet link; if they also have a connected Notion account (and a
-    parent page to create under), creates a shared study-notes page too.
-    Neither integration blocks match confirmation if it's missing or fails.
+    Proposes a study-pair match between two existing users -- a pending
+    invite, not an immediate booking. Nothing gets booked on Calendar/Notion
+    at this step; that only happens if/when partner_id accepts via
+    POST /api/match/<match_id>/respond.
 
     Expected JSON body:
         {
@@ -102,21 +208,12 @@ def confirm_match():
           "partner_id": 2,
           "start_time": "2026-07-22T14:00:00",
           "end_time": "2026-07-22T15:00:00",
-          "topic": "Calc II",                       # optional, for Notion page title
-          "notion_parent_page_id": "..."              # optional, required for Notion page creation
+          "topic": "Calc II",                       # optional, for Notion page title later
+          "notion_parent_page_id": "..."              # optional, used later if accepted
         }
 
-    Response on success, everything booked (200):
-        {"status": "confirmed", "match_id": 5, "score": 82.5,
-         "calendar_status": "booked", "meet_link": "...",
-         "notion_status": "created", "notes_page_url": "..."}
-
-    Response on success, calendar/notion not booked (200) - the match is
-    still saved, it's just flagged so the frontend can prompt the user to
-    connect an account or retry later instead of losing the match entirely:
-        {"status": "confirmed", "match_id": 5, "score": 82.5,
-         "calendar_status": "pending calendar confirmation",
-         "notion_status": "not connected"}
+    Response on success (200):
+        {"status": "pending", "match_id": 5, "score": 82.5}
 
     Response on invalid match (400):
         {"error": "students are not compatible (no availability/course overlap)"}
@@ -148,72 +245,79 @@ def confirm_match():
     if end_time <= start_time:
         return jsonify({"error": "end_time must be after start_time"}), 400
 
-    # Step 1: don't book anything unless the pair is actually compatible.
+    # Don't propose a match unless the pair is actually compatible.
     score = calculate_score(user, partner)
     if score <= 0:
         return jsonify({
             "error": "students are not compatible (no availability/course overlap)"
         }), 400
 
-    # Step 2: try to book the Calendar event. create_calendar_event already
-    # catches its own exceptions and returns None on failure, so we don't
-    # need a try/except here - just check the result.
-    access_token = get_valid_access_token(user_id, provider="google_calendar")
+    match = save_match(user_id, partner_id, score, status="pending")
+    save_match_proposal(
+        match.id,
+        start_time,
+        end_time,
+        topic=data.get("topic"),
+        notion_parent_page_id=data.get("notion_parent_page_id"),
+    )
 
-    calendar_status = "pending calendar confirmation"
-    meet_link = None
+    return jsonify({"status": "pending", "match_id": match.id, "score": score}), 200
 
-    if access_token:
-        event = GoogleCalendarService.create_calendar_event(
-            access_token,
-            summary="Study Session",
-            start_time=start_time,
-            end_time=end_time,
-            attendee_emails=[],  # TODO: populate with real emails once auth exists
-        )
-        if event:
-            calendar_status = "booked"
-            meet_link = event.get("hangoutLink")
-        # else: create_calendar_event already logged why it failed; we fall
-        # through with calendar_status left as "pending calendar confirmation"
-    # else: user hasn't connected Google yet - same graceful-degrade path
-    # as an API failure, so the match still gets confirmed either way.
 
-    # Step 3: try to create a shared Notion study-notes page. Same
-    # graceful-degrade pattern as Calendar above - a missing connection or
-    # a failed API call never blocks match confirmation.
-    notion_token = get_valid_access_token(user_id, provider="notion")
-    notion_parent_page_id = data.get("notion_parent_page_id")
+@match_bp.route("/<int:match_id>/respond", methods=["POST"])
+def respond_to_match(match_id):
+    """
+    POST /api/match/<match_id>/respond
 
-    notion_status = "not connected"
-    notes_page_url = None
+    Only the invited partner (match.user_b_id, i.e. the partner_id from the
+    original proposal) can respond to a pending match.
 
-    if notion_token and notion_parent_page_id:
-        page = NotionService.create_shared_page(
-            notion_token,
-            parent_page_id=notion_parent_page_id,
-            topic=data.get("topic", "Study Session"),
-            student_a_name=user.name,
-            student_b_name=partner.name,
-        )
-        if page:
-            notion_status = "created"
-            notes_page_url = page.get("url")
-        else:
-            notion_status = "pending notion confirmation"
-    elif notion_token and not notion_parent_page_id:
-        notion_status = "pending notion confirmation"  # connected but no parent page given
+    Expected JSON body:
+        {"response": "accept", "responding_user_id": 2}
+        {"response": "decline", "responding_user_id": 2}
 
-    # Step 4: persist the match. Match only stores user_a_id/user_b_id/score/
-    # status today -- calendar_status/meet_link/notion_status/notes_page_url
-    # are returned in the response but not persisted (known gap, would need
-    # new nullable columns on Match to survive a re-fetch).
-    match = save_match(user_id, partner_id, score, status="confirmed")
+    Response on decline (200):
+        {"status": "declined"}
+
+    Response on accept (200) -- this is where booking actually happens now:
+        {"status": "confirmed", "match_id": 5, "calendar_status": "booked",
+         "meet_link": "...", "notion_status": "created", "notes_page_url": "..."}
+
+    404 if match_id doesn't exist. 400 if it's not currently pending
+    (already responded to). 403 if responding_user_id isn't the invited
+    partner.
+    """
+    data = request.get_json() or {}
+    response_value = data.get("response")
+    responding_user_id = data.get("responding_user_id")
+
+    match = get_match(match_id)
+    if match is None:
+        return jsonify({"error": "match_id not found"}), 404
+
+    if match.status != "pending":
+        return jsonify({"error": "this match has already been responded to"}), 400
+
+    if responding_user_id != match.user_b_id:
+        return jsonify({"error": "only the invited partner can respond to this match"}), 403
+
+    if response_value == "decline":
+        update_match_status(match_id, "declined")
+        return jsonify({"status": "declined"}), 200
+
+    if response_value != "accept":
+        return jsonify({"error": "response must be 'accept' or 'decline'"}), 400
+
+    proposal = get_match_proposal(match_id)
+    calendar_status, meet_link, notion_status, notes_page_url = _book_session(match, proposal)
+
+    # Confirmed regardless of booking outcome -- booking failure never
+    # blocks acceptance, same graceful-degrade philosophy as before.
+    update_match_status(match_id, "confirmed")
 
     response = {
         "status": "confirmed",
         "match_id": match.id,
-        "score": score,
         "calendar_status": calendar_status,
         "notion_status": notion_status,
     }

@@ -35,6 +35,16 @@ window.location.href = "profile.html?required=1";
 
 <p id="backend-status" class="note">Checking backend connection…</p>
 
+<p class="panel-title" style="margin-top:0;">Pending invites</p>
+<p class="panel-sub">Invites waiting on you to accept or decline — nothing is booked until you accept.</p>
+
+<p id="pending-loading" class="note">Loading pending invites…</p>
+<p id="pending-empty" class="note" style="display:none;">No pending invites right now.</p>
+
+<div id="pending-list"></div>
+
+<p class="panel-title">Confirmed matches</p>
+
 <p id="groups-loading" class="note">Loading your confirmed matches…</p>
 <p id="groups-empty" class="note" style="display:none;">No confirmed study sessions yet — head to the Matches tab to schedule one.</p>
 
@@ -65,6 +75,95 @@ el.className = "note error";
 (function () {
 var userId = getStoredUserId();
 if (!userId) return;
+
+var pendingLoading = document.getElementById("pending-loading");
+var pendingEmpty = document.getElementById("pending-empty");
+var pendingList = document.getElementById("pending-list");
+
+function renderPendingCard(invite) {
+var card = document.createElement("div");
+card.className = "group-card pending";
+
+card.innerHTML =
+'<div class="group-info">' +
+'<p class="group-name">Invite from ' + invite.partner_name + '</p>' +
+'<p class="group-meta">Match score ' + Math.round(invite.score) + '%</p>' +
+'<div class="pending-actions">' +
+'<button type="button" class="btn-secondary accept-btn">Accept</button>' +
+'<button type="button" class="btn-secondary decline-btn">Decline</button>' +
+'</div>' +
+'<p class="match-status"></p>' +
+'</div>';
+
+var status = card.querySelector(".match-status");
+
+function respond(responseValue) {
+card.querySelector(".accept-btn").disabled = true;
+card.querySelector(".decline-btn").disabled = true;
+status.textContent = responseValue === "accept" ? "Accepting..." : "Declining...";
+status.className = "match-status";
+
+respondToMatch(invite.match_id, responseValue, userId).then(function (result) {
+if (!result.ok) {
+status.textContent = "Error: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+status.className = "match-status error";
+card.querySelector(".accept-btn").disabled = false;
+card.querySelector(".decline-btn").disabled = false;
+return;
+}
+
+if (responseValue === "decline") {
+card.remove();
+return;
+}
+
+var parts = [
+"calendar: " + result.data.calendar_status,
+"notion: " + result.data.notion_status
+];
+if (result.data.meet_link) parts.push("meet: " + result.data.meet_link);
+if (result.data.notes_page_url) parts.push("notes: " + result.data.notes_page_url);
+
+status.textContent = "Confirmed! " + parts.join(" | ");
+status.className = "match-status ok";
+card.querySelector(".pending-actions").style.display = "none";
+}).catch(function (err) {
+status.textContent = "Could not reach backend (" + err.message + ").";
+status.className = "match-status error";
+card.querySelector(".accept-btn").disabled = false;
+card.querySelector(".decline-btn").disabled = false;
+});
+}
+
+card.querySelector(".accept-btn").addEventListener("click", function () { respond("accept"); });
+card.querySelector(".decline-btn").addEventListener("click", function () { respond("decline"); });
+
+return card;
+}
+
+getPendingMatches(userId).then(function (result) {
+pendingLoading.style.display = "none";
+
+if (!result.ok) {
+pendingEmpty.textContent = "Could not load pending invites: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+pendingEmpty.style.display = "block";
+return;
+}
+
+var invites = result.data.pending || [];
+if (!invites.length) {
+pendingEmpty.style.display = "block";
+return;
+}
+
+invites.forEach(function (invite) {
+pendingList.appendChild(renderPendingCard(invite));
+});
+}).catch(function (err) {
+pendingLoading.style.display = "none";
+pendingEmpty.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + ").";
+pendingEmpty.style.display = "block";
+});
 
 var ACCENTS = ["bio", "calc", "hist"];
 var loading = document.getElementById("groups-loading");
