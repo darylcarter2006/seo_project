@@ -7,6 +7,7 @@
  *   GET  /api/match/candidates?user_id=
  *   GET  /api/match/history?user_id=
  *   POST /api/users
+ *   GET  /api/users/<id>/connections
  *   GET  /api/auth/google/login[?user_id=]
  *   GET  /api/auth/notion/login[?user_id=]
  * Change API_BASE if the backend is not running on localhost:5000.
@@ -94,6 +95,19 @@ async function saveProfileToBackend(profile) {
 
 async function getMatchCandidates(userId) {
     const res = await fetch(API_BASE + "/api/match/candidates?user_id=" + encodeURIComponent(userId));
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function getConnections(userId) {
+    const res = await fetch(API_BASE + "/api/users/" + encodeURIComponent(userId) + "/connections");
 
     let data = {};
     try {

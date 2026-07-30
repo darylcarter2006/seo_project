@@ -221,7 +221,26 @@ document.getElementById("connect-notion").addEventListener("click", function () 
 window.location.href = notionLoginUrl(getStoredUserId());
 });
 
+function markConnected(buttonId, label) {
+var btn = document.getElementById(buttonId);
+if (!btn) return;
+btn.textContent = "✓ " + label + " connected";
+btn.classList.add("connected");
+btn.disabled = true;
+}
+
+function refreshConnectionStatus() {
+var userId = getStoredUserId();
+if (!userId) return;
+getConnections(userId).then(function (result) {
+if (!result.ok) return;
+if (result.data.google_calendar) markConnected("connect-google", "Google Calendar");
+if (result.data.notion) markConnected("connect-notion", "Notion");
+});
+}
+
 prefillFromStoredProfile();
+refreshConnectionStatus();
 })();
 </script>
 </body>

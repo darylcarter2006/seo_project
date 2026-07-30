@@ -57,7 +57,7 @@ app/
   routes/
     auth_routes.py          # Google + Notion OAuth login/callback endpoints
     match_routes.py          # /api/match/confirm, /candidates, /history
-    user_routes.py           # POST /api/users — create/update a profile
+    user_routes.py           # POST /api/users, GET /<id>/connections
 run.py                       # entry point — python run.py
 ```
 
@@ -91,6 +91,10 @@ wires them into the OAuth/Calendar/Notion flow rather than replacing them.
   course code, weekly availability, optional study style/pace) from the
   shape `profile.html`'s form actually submits. Looked up by email, so
   resubmitting the same email updates that user instead of duplicating.
+- `GET /api/users/<user_id>/connections` — which OAuth providers
+  (`google_calendar`, `notion`) this user currently has a valid connection
+  for, so `profile.html` can show "✓ connected" instead of a plain
+  "Connect" button regardless of prior state.
 - `GET /api/match/candidates?user_id=` — ranked list of other users at the
   same school (see "Design decision" below) for `matches.html` to render,
   via `recommendation_engine.find_best_matches()`. Note: it ranks
@@ -206,13 +210,13 @@ pip install -r requirements.txt   # includes pytest
 python -m pytest tests/ -v
 ```
 
-57 tests cover availability/compatibility scoring, ranking, DB persistence
-(`Match`/`User` CRUD), profile creation/update (`POST /api/users`), match
-discovery including the same-school hard filter (`/candidates`, `/history`),
-the OAuth `user_id` query param and redirect-on-callback behavior, the seed
-script's idempotency, and `/api/match/confirm` (success + real persisted
-`Match`, incompatible pair, unknown user, Calendar/Notion failure fallback
-paths).
+60 tests cover availability/compatibility scoring, ranking, DB persistence
+(`Match`/`User` CRUD), profile creation/update (`POST /api/users`),
+connection status (`GET /<id>/connections`), match discovery including the
+same-school hard filter (`/candidates`, `/history`), the OAuth `user_id`
+query param and redirect-on-callback behavior, the seed script's
+idempotency, and `/api/match/confirm` (success + real persisted `Match`,
+incompatible pair, unknown user, Calendar/Notion failure fallback paths).
 
 Manual check, full 3-tab flow: run `python -m app.database.seed` to get demo
 users in place, then `python run.py`, then serve the frontend statically

@@ -13,7 +13,9 @@ with the same email updates that user instead of creating a duplicate.
 from flask import Blueprint, request, jsonify
 
 from app.database.db import db
+from app.routes.auth_routes import get_valid_access_token
 from app.services.persistence import (
+    get_user,
     get_user_by_email,
     create_user,
     clear_availability,
@@ -109,3 +111,22 @@ def create_or_update_profile():
     set_preference(user.id, data.get("study_style") or "discussion", data.get("pace") or 3)
 
     return jsonify({"user_id": user.id}), 200
+
+
+@user_bp.route("/<int:user_id>/connections")
+def connection_status(user_id):
+    """
+    GET /api/users/<user_id>/connections
+
+    Which OAuth providers this user currently has a valid connection for,
+    reusing get_valid_access_token() (already handles the expired/refresh
+    case) rather than just checking whether a token row exists.
+    Response: {"google_calendar": true, "notion": false}
+    """
+    if get_user(user_id) is None:
+        return jsonify({"error": "user_id must reference an existing user"}), 404
+
+    return jsonify({
+        "google_calendar": get_valid_access_token(user_id, provider="google_calendar") is not None,
+        "notion": get_valid_access_token(user_id, provider="notion") is not None,
+    }), 200

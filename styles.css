@@ -216,6 +216,13 @@
   }
   .btn-oauth:hover { border-color: var(--ink-soft); }
   .btn-oauth .dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .btn-oauth.connected {
+    background: #F3F9F5;
+    border-color: var(--high);
+    color: var(--high);
+    cursor: default;
+    font-weight: 600;
+  }
 
   /* ---- Screen 2: Group Dashboard ---- */
   .group-card {

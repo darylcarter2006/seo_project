@@ -5,9 +5,13 @@ actually submits: name, email, course_code, availability (day name ->
 list of [start, end] HH:MM strings).
 """
 
+from datetime import datetime, timedelta
+
+from app.database.db import db
 from app.models.availability import Availability
 from app.models.preference import Preference
-from app.services.persistence import get_user_by_email
+from app.models.oauth_token import OAuthToken
+from app.services.persistence import get_user_by_email, create_user
 
 
 def test_create_profile_persists_user_availability_course_and_preference(app):
@@ -115,3 +119,37 @@ def test_invalid_time_range_returns_400(app):
     }
     response = client.post("/api/users", json=payload)
     assert response.status_code == 400
+
+
+def test_connections_reports_false_for_both_providers_when_none_connected(app):
+    user = create_user("Frank", "frank@example.edu")
+    client = app.test_client()
+
+    response = client.get(f"/api/users/{user.id}/connections")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"google_calendar": False, "notion": False}
+
+
+def test_connections_reports_true_for_provider_with_valid_token(app):
+    user = create_user("Grace", "grace@example.edu")
+    db.session.add(OAuthToken(
+        user_id=user.id,
+        provider="google_calendar",
+        access_token="fake-token",
+        refresh_token="fake-refresh",
+        expires_at=datetime.utcnow() + timedelta(hours=1),
+    ))
+    db.session.commit()
+
+    client = app.test_client()
+    response = client.get(f"/api/users/{user.id}/connections")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"google_calendar": True, "notion": False}
+
+
+def test_connections_unknown_user_returns_404(app):
+    client = app.test_client()
+    response = client.get("/api/users/999999/connections")
+    assert response.status_code == 404
