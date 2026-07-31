@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Matches — Study Group Matcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<script src="api.js"></script>
+<script>
+if (!getStoredProfile() || !getStoredUserId()) {
+window.location.href = "profile.html?required=1";
+}
+</script>
+<div class="wrap">
+<div class="masthead">
+<h1>Study Group Matcher</h1>
+<span class="term">Summer 2026</span>
+</div>
+<p id="current-user-note" class="current-user"></p>
+
+<nav class="tabs" aria-label="Screens">
+<a class="tab" href="profile.html" >1 · Profile</a>
+<a class="tab" href="dashboard.html" >2 · Dashboard</a>
+<a class="tab" href="matches.html" aria-current="page">3 · Matches</a>
+</nav>
+
+<div class="panel">
+<section class="screen active">
+<p class="panel-title">Your matches</p>
+<p class="panel-sub">Ranked by shared courses and schedule overlap.</p>
+
+<p id="profile-warning" class="note error" style="display:none;"><b>No profile found.</b> Go to the Profile tab and create one first.</p>
+<p id="matches-loading" class="note">Loading matches…</p>
+<p id="matches-empty" class="note" style="display:none;">No other study partners in the system yet — check back once more people have created profiles.</p>
+
+<div id="match-list"></div>
+
+<p class="note"><b>Accessibility decision:</b> match score uses color + numeric % + icon shape cues (not color alone), and badges meet 4.5:1 contrast so colorblind users can still read match strength.</p>
+</section>
+</div>
+
+<footer class="credit">STUDY GROUP MATCHER</footer>
+</div>
+
+<script>
+renderCurrentUserBadge();
+
+(function () {
+var profile = getStoredProfile();
+var userId = getStoredUserId();
+var warning = document.getElementById("profile-warning");
+if (!profile || !userId) {
+if (warning) warning.style.display = "block";
+return;
+}
+
+var CIRCUMFERENCE = 138.2; // 2 * pi * r(22), matches the ring markup below
+var DAY_LABELS = {
+monday: "Mon", tuesday: "Tue", wednesday: "Wed", thursday: "Thu",
+friday: "Fri", saturday: "Sat", sunday: "Sun"
+};
+
+function tierFor(score) {
+if (score >= 75) return { colorVar: "--high", shapeClass: "circle" };
+if (score >= 50) return { colorVar: "--mid", shapeClass: "triangle" };
+return { colorVar: "--low", shapeClass: "square" };
+}
+
+function formatTime12h(hhmm) {
+var hour = parseInt(hhmm.split(":")[0], 10);
+var period = hour >= 12 ? "PM" : "AM";
+var hour12 = hour % 12;
+if (hour12 === 0) hour12 = 12;
+return hour12 + ":00 " + period;
+}
+
+function formatOverlapWindows(windows) {
+if (!windows || !windows.length) return "No overlapping availability";
+return "Free together: " + windows.map(function (w) {
+return DAY_LABELS[w.day] + " " + formatTime12h(w.start) + "–" + formatTime12h(w.end);
+}).join(", ");
+}
+
+function renderCard(candidate) {
+var user = candidate.user;
+var score = Math.round(candidate.score);
+var tier = tierFor(score);
+var dashoffset = (CIRCUMFERENCE * (1 - score / 100)).toFixed(1);
+var meta = (candidate.reasons || []).join(" · ") || "No shared details yet";
+var overlapText = formatOverlapWindows(candidate.overlapping_availability);
+var topic = (user.courses && user.courses.length) ? user.courses[0] : "Study Session";
+
+var card = document.createElement("div");
+card.className = "match-card";
+card.setAttribute("data-partner-id", user.id);
+card.setAttribute("data-topic", topic);
+
+card.innerHTML =
+'<div class="match-card-top">' +
+'<svg class="ring" width="52" height="52" viewBox="0 0 52 52">' +
+'<circle cx="26" cy="26" r="22" fill="none" stroke="#E3E9EC" stroke-width="5"/>' +
+'<circle cx="26" cy="26" r="22" fill="none" stroke="var(' + tier.colorVar + ')" stroke-width="5" ' +
+'stroke-dasharray="' + CIRCUMFERENCE + '" stroke-dashoffset="' + dashoffset + '" stroke-linecap="round" transform="rotate(-90 26 26)"/>' +
+'<text x="26" y="30" text-anchor="middle" class="ring-label" fill="var(--ink)">' + score + '%</text>' +
+'</svg>' +
+'<div>' +
+'<p class="match-name"><span class="shape ' + tier.shapeClass + '"></span> ' + user.name + '</p>' +
+'<p class="match-meta">' + meta + '</p>' +
+'<p class="match-overlap">' + overlapText + '</p>' +
+'</div>' +
+'</div>' +
+'<div class="match-actions">' +
+'<div class="field">' +
+'<label for="start-' + user.id + '">Session start</label>' +
+'<input type="datetime-local" id="start-' + user.id + '" class="match-start">' +
+'</div>' +
+'<div class="field">' +
+'<label for="end-' + user.id + '">Session end</label>' +
+'<input type="datetime-local" id="end-' + user.id + '" class="match-end">' +
+'</div>' +
+'<button type="button" class="btn-secondary schedule-btn">Confirm &amp; schedule</button>' +
+'<p class="match-status"></p>' +
+'</div>';
+
+var btn = card.querySelector(".schedule-btn");
+var status = card.querySelector(".match-status");
+
+btn.addEventListener("click", function () {
+var startVal = card.querySelector(".match-start").value;
+var endVal = card.querySelector(".match-end").value;
+if (!startVal || !endVal) {
+status.textContent = "Pick a session start and end time first.";
+status.className = "match-status error";
+return;
+}
+
+var payload = {
+user_id: userId,
+partner_id: Number(card.getAttribute("data-partner-id")),
+start_time: new Date(startVal).toISOString(),
+end_time: new Date(endVal).toISOString(),
+topic: card.getAttribute("data-topic")
+};
+
+var storedNotionPageId = getStoredNotionPageId();
+if (storedNotionPageId) {
+payload.notion_parent_page_id = storedNotionPageId;
+}
+
+status.textContent = "Sending invite...";
+status.className = "match-status";
+
+confirmMatch(payload).then(function (result) {
+if (!result.ok) {
+status.textContent = "Error: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+status.className = "match-status error";
+return;
+}
+
+// Nothing is booked yet at this step -- the invite still needs the
+// partner to accept via POST /api/match/<id>/respond (see dashboard.html).
+status.textContent = "Invite sent to " + user.name + " — waiting for them to accept.";
+status.className = "match-status ok";
+}).catch(function (err) {
+status.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
+status.className = "match-status error";
+});
+});
+
+return card;
+}
+
+var loading = document.getElementById("matches-loading");
+var empty = document.getElementById("matches-empty");
+var list = document.getElementById("match-list");
+
+getMatchCandidates(userId).then(function (result) {
+loading.style.display = "none";
+
+if (!result.ok) {
+empty.textContent = "Could not load matches: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+empty.style.display = "block";
+return;
+}
+
+var candidates = result.data.candidates || [];
+if (!candidates.length) {
+empty.style.display = "block";
+return;
+}
+
+candidates.forEach(function (candidate) {
+list.appendChild(renderCard(candidate));
+});
+}).catch(function (err) {
+loading.style.display = "none";
+empty.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
+empty.style.display = "block";
+});
+})();
+</script>
+</body>
+</html>

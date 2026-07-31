@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile — Study Group Matcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div class="wrap">
+<div class="masthead">
+<h1>Study Group Matcher</h1>
+<span class="term">Summer 2026</span>
+</div>
+<p id="current-user-note" class="current-user"></p>
+
+<nav class="tabs" aria-label="Screens">
+<a class="tab" href="profile.html" aria-current="page">1 · Profile</a>
+<a class="tab" href="dashboard.html" >2 · Dashboard</a>
+<a class="tab" href="matches.html" >3 · Matches</a>
+</nav>
+
+<div class="panel">
+<section class="screen active">
+<p class="panel-title">Create your profile</p>
+<p class="panel-sub">Tell us what you're studying and when you're free, so we can find your people!</p>
+
+<p id="profile-required-note" class="note error" style="display:none;"><b>Profile required.</b> Create and save a profile below before you can access the Dashboard or Matches tabs.</p>
+<p id="oauth-status-note" class="note" style="display:none;"></p>
+
+<p id="load-profile-row" class="link-row" style="display:none;">Have a saved profile on this device? <a href="#" id="load-profile-link">Load my saved profile</a></p>
+<p id="load-profile-error" class="note error" style="display:none;"></p>
+<p class="link-row">Setting up a profile for someone else on this device? <a href="#" id="new-profile-link">New profile / not you?</a></p>
+
+<form id="profile-form">
+<div class="field">
+<label for="name">Full name</label>
+<input type="text" id="name" placeholder="John Doe">
+</div>
+<div class="field">
+<label for="email">Email address</label>
+<input type="email" id="email" placeholder="you@school.edu">
+<p class="field-hint">Using someone else's info here? <a href="#" class="new-profile-link">Clear the form first</a> — submitting a different person's email under a stale form can silently overwrite their saved profile.</p>
+</div>
+<div class="field">
+<label for="course_code">Course code</label>
+<input type="text" id="course_code" placeholder="e.g. CHEM101" required>
+</div>
+
+<div class="field">
+<label>Weekly availability</label>
+<p class="panel-sub">Check each day you're free and set a time range.</p>
+<div class="bulk-availability">
+<label for="bulk-start">Apply one time range to all checked days</label>
+<div class="bulk-availability-row">
+<input type="time" id="bulk-start"> to <input type="time" id="bulk-end">
+<button type="button" class="btn-secondary" id="apply-bulk-time">Apply to all checked days</button>
+</div>
+</div>
+<div id="availability-builder">
+<div class="avail-row" data-day="monday">
+<label><input type="checkbox" class="avail-day"> Monday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="tuesday">
+<label><input type="checkbox" class="avail-day"> Tuesday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="wednesday">
+<label><input type="checkbox" class="avail-day"> Wednesday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="thursday">
+<label><input type="checkbox" class="avail-day"> Thursday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="friday">
+<label><input type="checkbox" class="avail-day"> Friday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="saturday">
+<label><input type="checkbox" class="avail-day"> Saturday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+<div class="avail-row" data-day="sunday">
+<label><input type="checkbox" class="avail-day"> Sunday</label>
+<input type="time" class="avail-start"> to <input type="time" class="avail-end">
+</div>
+</div>
+</div>
+
+<button class="btn-primary" type="submit">Create profile</button>
+<p id="profile-saved-note" class="note" style="display:none;"><b>Saved.</b></p>
+<p id="profile-error-note" class="note error" style="display:none;"></p>
+</form>
+
+<div class="divider">or connect your accounts</div>
+
+<button type="button" class="btn-oauth" id="connect-google"><span class="dot" style="background:#4285F4"></span> Connect Google Calendar</button>
+<button type="button" class="btn-oauth" id="connect-notion"><span class="dot" style="background:#000000"></span> Connect Notion</button>
+
+<div class="field">
+<label for="notion-parent-page">Notion parent page (optional)</label>
+<input type="text" id="notion-parent-page" placeholder="Paste a Notion page ID or URL">
+<p class="field-hint">Open a Notion page you own, click ••• → Connections → add [integration name], then paste that page's ID or link here. This is where your shared study notes will be created.</p>
+</div>
+</section>
+</div>
+
+<footer class="credit">STUDY GROUP MATCHER</footer>
+</div>
+
+<script src="api.js"></script>
+<script>
+(function () {
+var form = document.getElementById("profile-form");
+var savedNote = document.getElementById("profile-saved-note");
+var errorNote = document.getElementById("profile-error-note");
+var requiredNote = document.getElementById("profile-required-note");
+var oauthStatusNote = document.getElementById("oauth-status-note");
+
+var params = new URLSearchParams(window.location.search);
+if (params.get("required") === "1" && requiredNote) {
+requiredNote.style.display = "block";
+}
+
+var connected = params.get("connected");
+if (connected && oauthStatusNote) {
+oauthStatusNote.textContent = (connected === "google" ? "Google Calendar" : "Notion") + " connected.";
+oauthStatusNote.className = "note ok";
+oauthStatusNote.style.display = "block";
+} else if (params.get("connection_error") === "1" && oauthStatusNote) {
+oauthStatusNote.textContent = "Could not connect that account. Please try again.";
+oauthStatusNote.className = "note error";
+oauthStatusNote.style.display = "block";
+}
+
+function clearProfileForm() {
+document.getElementById("name").value = "";
+document.getElementById("email").value = "";
+document.getElementById("course_code").value = "";
+dayRows().forEach(function (row) {
+row.querySelector(".avail-day").checked = false;
+row.querySelector(".avail-start").value = "";
+row.querySelector(".avail-end").value = "";
+});
+localStorage.removeItem("studyProfile");
+localStorage.removeItem("studyUserId");
+savedNote.style.display = "none";
+errorNote.style.display = "none";
+renderCurrentUserBadge();
+refreshLoadProfileVisibility();
+}
+
+Array.prototype.slice.call(document.querySelectorAll(".new-profile-link, #new-profile-link")).forEach(function (link) {
+link.addEventListener("click", function (event) {
+event.preventDefault();
+clearProfileForm();
+});
+});
+
+function dayRows() {
+return Array.prototype.slice.call(document.querySelectorAll(".avail-row"));
+}
+
+function populateFormFromProfile(profile) {
+if (profile.name) document.getElementById("name").value = profile.name;
+if (profile.email) document.getElementById("email").value = profile.email;
+if (profile.course_code) document.getElementById("course_code").value = profile.course_code;
+
+dayRows().forEach(function (row) {
+var day = row.getAttribute("data-day");
+var block = profile.availability && profile.availability[day];
+if (block && block.length) {
+row.querySelector(".avail-day").checked = true;
+row.querySelector(".avail-start").value = block[0][0];
+row.querySelector(".avail-end").value = block[0][1];
+}
+});
+}
+
+var loadProfileRow = document.getElementById("load-profile-row");
+var loadProfileLink = document.getElementById("load-profile-link");
+var loadProfileError = document.getElementById("load-profile-error");
+
+function refreshLoadProfileVisibility() {
+loadProfileRow.style.display = getStoredUserId() ? "block" : "none";
+}
+
+loadProfileLink.addEventListener("click", function (event) {
+event.preventDefault();
+var userId = getStoredUserId();
+if (!userId) return;
+
+loadProfileError.style.display = "none";
+
+getProfile(userId).then(function (result) {
+if (!result.ok) {
+if (result.status === 404) {
+localStorage.removeItem("studyUserId");
+refreshLoadProfileVisibility();
+}
+loadProfileError.textContent = "Could not load saved profile: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+loadProfileError.style.display = "block";
+return;
+}
+populateFormFromProfile(result.data);
+}).catch(function (err) {
+loadProfileError.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + ").";
+loadProfileError.style.display = "block";
+});
+});
+
+function buildAvailability() {
+var availability = {};
+dayRows().forEach(function (row) {
+var day = row.getAttribute("data-day");
+var checked = row.querySelector(".avail-day").checked;
+var start = row.querySelector(".avail-start").value;
+var end = row.querySelector(".avail-end").value;
+if (checked && start && end) {
+availability[day] = [[start, end]];
+}
+});
+return availability;
+}
+
+form.addEventListener("submit", function (event) {
+event.preventDefault();
+
+var profile = {
+name: document.getElementById("name").value,
+email: document.getElementById("email").value,
+course_code: document.getElementById("course_code").value,
+availability: buildAvailability()
+};
+
+errorNote.style.display = "none";
+savedNote.style.display = "none";
+
+saveProfileToBackend(profile).then(function (result) {
+if (!result.ok) {
+errorNote.textContent = "Could not save profile: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+errorNote.style.display = "block";
+return;
+}
+
+saveUserId(result.data.user_id);
+saveProfile(profile);
+savedNote.style.display = "block";
+if (requiredNote) requiredNote.style.display = "none";
+renderCurrentUserBadge();
+refreshLoadProfileVisibility();
+}).catch(function (err) {
+errorNote.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
+errorNote.style.display = "block";
+});
+});
+
+document.getElementById("apply-bulk-time").addEventListener("click", function () {
+var start = document.getElementById("bulk-start").value;
+var end = document.getElementById("bulk-end").value;
+if (!start || !end) return;
+dayRows().forEach(function (row) {
+if (row.querySelector(".avail-day").checked) {
+row.querySelector(".avail-start").value = start;
+row.querySelector(".avail-end").value = end;
+}
+});
+});
+
+document.getElementById("connect-google").addEventListener("click", function () {
+window.location.href = googleLoginUrl(getStoredUserId());
+});
+
+document.getElementById("connect-notion").addEventListener("click", function () {
+window.location.href = notionLoginUrl(getStoredUserId());
+});
+
+function markConnected(buttonId, label) {
+var btn = document.getElementById(buttonId);
+if (!btn) return;
+btn.textContent = "✓ " + label + " connected";
+btn.classList.add("connected");
+btn.disabled = true;
+}
+
+function refreshConnectionStatus() {
+var userId = getStoredUserId();
+if (!userId) return;
+getConnections(userId).then(function (result) {
+if (!result.ok) return;
+if (result.data.google_calendar) markConnected("connect-google", "Google Calendar");
+if (result.data.notion) markConnected("connect-notion", "Notion");
+});
+}
+
+var notionPageInput = document.getElementById("notion-parent-page");
+notionPageInput.value = getStoredNotionPageId();
+notionPageInput.addEventListener("change", function () {
+var parsed = parseNotionPageId(notionPageInput.value);
+notionPageInput.value = parsed;
+saveNotionPageId(parsed);
+});
+
+refreshLoadProfileVisibility();
+refreshConnectionStatus();
+renderCurrentUserBadge();
+})();
+</script>
+</body>
+</html>

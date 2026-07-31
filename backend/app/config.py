@@ -54,6 +54,14 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False  # silences an unnecessary warning
 
+    # --- Frontend (dev only) ---
+    # Where the static frontend is served from, so OAuth callbacks can
+    # redirect the browser back into the actual app instead of leaving the
+    # user stranded on a bare JSON response. Dev-only assumption: the
+    # frontend is a plain static server (e.g. `python -m http.server 8000`)
+    # separate from this API -- not meant for production.
+    FRONTEND_BASE_URL = os.environ.get("FRONTEND_BASE_URL", "http://localhost:8000")
+
 
 class TestConfig(Config):
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"

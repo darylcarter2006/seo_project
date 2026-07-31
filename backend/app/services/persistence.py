@@ -7,7 +7,7 @@ no database at all (see tests/test_scoring.py).
 """
 
 from app.database.db import db
-from app.models import User, Course, Availability, Preference, Match
+from app.models import User, Course, Availability, Preference, Match, MatchProposal
 
 
 # --- Match persistence ---
@@ -53,6 +53,62 @@ def update_match_status(match_id, status):
     return match
 
 
+def save_match_proposal(match_id, start_time, end_time, topic=None, notion_parent_page_id=None):
+    proposal = MatchProposal(
+        match_id=match_id,
+        start_time=start_time,
+        end_time=end_time,
+        topic=topic,
+        notion_parent_page_id=notion_parent_page_id,
+    )
+    db.session.add(proposal)
+    db.session.commit()
+    return proposal
+
+
+def get_match_proposal(match_id):
+    return MatchProposal.query.filter_by(match_id=match_id).first()
+
+
+def set_match_proposal_event_id(match_id, event_id):
+    proposal = get_match_proposal(match_id)
+    if not proposal:
+        return None
+    proposal.google_calendar_event_id = event_id
+    db.session.commit()
+    return proposal
+
+
+def save_booking_result(match_id, calendar_status, meet_link, notion_status, notes_page_url):
+    """Persists the Calendar/Notion booking outcome from accept-time so it
+    survives a later re-fetch (e.g. GET /api/match/history), instead of only
+    ever being returned once in the /respond response."""
+    proposal = get_match_proposal(match_id)
+    if not proposal:
+        return None
+    proposal.calendar_status = calendar_status
+    proposal.meet_link = meet_link
+    proposal.notion_status = notion_status
+    proposal.notes_page_url = notes_page_url
+    db.session.commit()
+    return proposal
+
+
+def set_match_proposal_dismissed(match_id, side):
+    """side: 'a' or 'b' -- marks that participant's dismissal flag on
+    MatchProposal, clearing the match from their own dashboard view
+    without touching the other participant's."""
+    proposal = get_match_proposal(match_id)
+    if not proposal:
+        return None
+    if side == "a":
+        proposal.dismissed_by_user_a = True
+    else:
+        proposal.dismissed_by_user_b = True
+    db.session.commit()
+    return proposal
+
+
 # --- User / supporting persistence ---
 
 def create_user(name, email):
@@ -66,6 +122,17 @@ def get_user(user_id):
     return db.session.get(User, user_id)
 
 
+def get_user_by_email(email):
+    return User.query.filter_by(email=email).first()
+
+
+def email_domain(email):
+    """Returns the part after '@', lowercased -- used as a lightweight
+    proxy for "school" since there's no dedicated school field on User.
+    See README for the tradeoffs of this approach."""
+    return email.rsplit("@", 1)[-1].lower()
+
+
 def get_all_users():
     return User.query.all()
 
@@ -77,6 +144,14 @@ def add_availability(user_id, day_of_week, start_hour, end_hour):
     db.session.add(slot)
     db.session.commit()
     return slot
+
+
+def clear_availability(user_id):
+    """Deletes all of a user's existing Availability rows -- used when
+    re-saving a profile, so re-submitting the form replaces the schedule
+    instead of accumulating duplicate/stale rows alongside it."""
+    Availability.query.filter_by(user_id=user_id).delete()
+    db.session.commit()
 
 
 def set_preference(user_id, study_style, pace):
