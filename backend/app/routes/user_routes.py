@@ -14,6 +14,7 @@ from flask import Blueprint, request, jsonify
 
 from app.database.db import db
 from app.routes.auth_routes import get_valid_access_token
+from app.services.scoring import DAY_NAMES
 from app.services.persistence import (
     get_user,
     get_user_by_email,
@@ -111,6 +112,41 @@ def create_or_update_profile():
     set_preference(user.id, data.get("study_style") or "discussion", data.get("pace") or 3)
 
     return jsonify({"user_id": user.id}), 200
+
+
+@user_bp.route("/<int:user_id>")
+def get_profile(user_id):
+    """
+    GET /api/users/<user_id>
+
+    Authoritative snapshot of this user's saved profile. Used by
+    profile.html's explicit "Load my saved profile" button instead of
+    trusting whatever's sitting in localStorage -- see README for why
+    auto-prefilling from localStorage was a problem.
+    Response: {"name": "...", "email": "...", "course_code": "...",
+     "availability": {"monday": [["14:00", "16:00"]], ...},
+     "study_style": "quiet", "pace": 3}
+    404 if user_id doesn't exist.
+    """
+    user = get_user(user_id)
+    if user is None:
+        return jsonify({"error": "user_id must reference an existing user"}), 404
+
+    availability = {}
+    for slot in user.availability_slots:
+        day = DAY_NAMES[slot.day_of_week]
+        availability.setdefault(day, []).append(
+            [f"{slot.start_hour:02d}:00", f"{slot.end_hour:02d}:00"]
+        )
+
+    return jsonify({
+        "name": user.name,
+        "email": user.email,
+        "course_code": user.courses[0].code if user.courses else "",
+        "availability": availability,
+        "study_style": user.preference.study_style if user.preference else "discussion",
+        "pace": user.preference.pace if user.preference else 3,
+    }), 200
 
 
 @user_bp.route("/<int:user_id>/connections")

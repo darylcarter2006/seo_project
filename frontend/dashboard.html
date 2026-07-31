@@ -231,11 +231,20 @@ var when = new Date(match.created_at).toLocaleString(undefined, {
 month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
 });
 
+var extras = '';
+if (match.meet_link) {
+extras += '<p class="group-meta"><a href="' + match.meet_link + '" target="_blank" rel="noopener">Join Google Meet</a></p>';
+}
+if (match.notes_page_url) {
+extras += '<p class="group-meta"><a href="' + match.notes_page_url + '" target="_blank" rel="noopener">Shared notes (Notion)</a></p>';
+}
+
 card.innerHTML =
 '<div class="group-info">' +
 '<p class="group-name">Study session with ' + match.partner_name + '</p>' +
 '<p class="group-meta">Confirmed ' + when + ' &nbsp;·&nbsp; match score ' + Math.round(match.score) + '%</p>' +
 '<p class="group-meta">' + match.partner_email + '</p>' +
+extras +
 '<div class="pending-actions">' +
 '<button type="button" class="btn-secondary cancel-btn">Cancel</button>' +
 '</div>' +

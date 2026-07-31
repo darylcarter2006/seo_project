@@ -79,6 +79,21 @@ def set_match_proposal_event_id(match_id, event_id):
     return proposal
 
 
+def save_booking_result(match_id, calendar_status, meet_link, notion_status, notes_page_url):
+    """Persists the Calendar/Notion booking outcome from accept-time so it
+    survives a later re-fetch (e.g. GET /api/match/history), instead of only
+    ever being returned once in the /respond response."""
+    proposal = get_match_proposal(match_id)
+    if not proposal:
+        return None
+    proposal.calendar_status = calendar_status
+    proposal.meet_link = meet_link
+    proposal.notion_status = notion_status
+    proposal.notes_page_url = notes_page_url
+    db.session.commit()
+    return proposal
+
+
 # --- User / supporting persistence ---
 
 def create_user(name, email):

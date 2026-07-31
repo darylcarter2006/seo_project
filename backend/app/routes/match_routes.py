@@ -33,6 +33,7 @@ from app.services.persistence import (
     save_match_proposal,
     get_match_proposal,
     set_match_proposal_event_id,
+    save_booking_result,
     email_domain,
 )
 
@@ -81,9 +82,15 @@ def history():
     This user's confirmed matches -- who with, and the score at
     confirmation time. Only matches that actually went through full
     acceptance (see /respond) show up here, not just proposed ones.
+    Also includes the Calendar/Notion booking outcome from accept time
+    (pulled back out of MatchProposal, where /respond persists it), so
+    this detail survives a re-fetch instead of only existing in the
+    one-time /respond response.
     Response:
         {"matches": [{"match_id": 5, "partner_name": "Bob",
-         "partner_email": "bob@example.edu", "score": 82.5}, ...]}
+         "partner_email": "bob@example.edu", "score": 82.5,
+         "calendar_status": "booked", "meet_link": "...",
+         "notion_status": "created", "notes_page_url": "..."}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
     if user_id is None:
@@ -97,12 +104,17 @@ def history():
     results = []
     for match in confirmed:
         partner = match.user_b if match.user_a_id == user_id else match.user_a
+        proposal = get_match_proposal(match.id)
         results.append({
             "match_id": match.id,
             "partner_name": partner.name,
             "partner_email": partner.email,
             "score": match.score,
             "created_at": match.created_at.isoformat(),
+            "calendar_status": proposal.calendar_status if proposal else None,
+            "meet_link": proposal.meet_link if proposal else None,
+            "notion_status": proposal.notion_status if proposal else None,
+            "notes_page_url": proposal.notes_page_url if proposal else None,
         })
     return jsonify({"matches": results}), 200
 
@@ -345,6 +357,7 @@ def respond_to_match(match_id):
 
     proposal = get_match_proposal(match_id)
     calendar_status, meet_link, notion_status, notes_page_url = _book_session(match, proposal)
+    save_booking_result(match_id, calendar_status, meet_link, notion_status, notes_page_url)
 
     # Confirmed regardless of booking outcome -- booking failure never
     # blocks acceptance, same graceful-degrade philosophy as before.

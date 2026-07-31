@@ -184,7 +184,8 @@ successfully booked, for the same "don't touch `Match`" reason — this is
 what `POST /api/match/<match_id>/cancel` uses to actually delete the
 Calendar event later, not just flip a status in our own DB.
 
-**Dev note:** `MatchProposal` gained the `google_calendar_event_id` column
+**Dev note:** `MatchProposal` gained the `google_calendar_event_id` column,
+and later `calendar_status`/`meet_link`/`notion_status`/`notes_page_url`,
 after some of you may have already created `instance/study_partner.db` —
 there's no migrations tool here (see `migrations.py`'s docstring), so if
 you hit a "no such column" error, delete that sqlite file and let
@@ -251,37 +252,38 @@ masthead (or "No profile yet"), reading from the same `getStoredProfile()`
 demo with multiple people isn't confusing about whose view is on screen.
 No backend involved.
 
-## Known UX limitation: stale profile-form data between users
+## Explicit profile loading (no more auto-prefill)
 
-`profile.html` prefills the name/email/course/availability fields from a
-single shared `localStorage` key (`studyProfile`) on load, for the
-legitimate case of editing your own existing profile. It does **not**
-auto-clear between different people using the same browser — since
-`POST /api/users` looks up users by email to decide create-vs-update, if a
-second person fills out the form without noticing a first person's email
-is still sitting in the `email` field, submitting **silently overwrites
-the first person's profile** instead of creating a second one. This bit us
-once during testing.
+`profile.html` used to prefill the name/email/course/availability fields
+from a single shared `localStorage` key (`studyProfile`) on every page
+load. That was a real problem on a shared browser: since `POST /api/users`
+looks up users by email to decide create-vs-update, a second person could
+fill out the form without noticing a first person's email was still
+sitting in the `email` field, and submitting would **silently overwrite
+the first person's profile** instead of creating a second one. This bit
+us once during testing.
 
-Mitigation shipped: a visible "New profile / not you?" link (top of the
-Profile tab and next to the email field) that explicitly clears the form
-and the `studyProfile`/`studyUserId` localStorage keys, plus an inline
-warning by the email field. It is **not** automatic — auto-clearing on
-every page load would break the "edit my own profile" case — so a user
-who doesn't click it can still hit this. When demoing with multiple
-people on one laptop, always click "New profile / not you?" before
-handing the keyboard to the next person.
+Root fix, not just a mitigation: the form **no longer auto-prefills from
+localStorage at all**. A brand-new person on the same browser now just
+gets a blank form, full stop. If `studyUserId` is set (i.e. this browser
+has saved a profile before), a "Load my saved profile" link appears; only
+when clicked does it call the new `GET /api/users/<user_id>` endpoint and
+populate the form from that authoritative backend response — never from
+the local snapshot. The "New profile / not you?" link is still there as
+an explicit reset/fallback, but it's no longer the thing standing between
+a user and silently overwriting someone else's data — not auto-loading in
+the first place is.
 
-## Known gap
+## Booking-outcome persistence
 
-`Match` only stores `user_a_id`/`user_b_id`/`score`/`status` — the Calendar/
-Notion outcome (`calendar_status`, `meet_link`, `notion_status`,
-`notes_page_url`) from `/respond`'s accept response is not persisted
-anywhere, so a later re-fetch of a confirmed match loses that detail (it's
-not in `Match`, and `MatchProposal` only holds pre-acceptance session
-details, not the booking outcome). Adding a small result table alongside
-`MatchProposal` is a natural next step, for the same "don't touch Match's
-schema" reason `MatchProposal` itself exists.
+The Calendar/Notion outcome from accepting a match (`calendar_status`,
+`meet_link`, `notion_status`, `notes_page_url`) is saved onto the
+`MatchProposal` row (`persistence.save_booking_result()`) right after
+`_book_session()` runs in `/respond`'s accept path, and `GET
+/api/match/history` reads it back from there for each confirmed match.
+Same "don't touch `Match`'s schema" reasoning as everything else on
+`MatchProposal` — this used to only exist in the one-time `/respond`
+response and was lost on any later re-fetch.
 
 ## Testing
 

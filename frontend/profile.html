@@ -31,6 +31,8 @@
 <p id="profile-required-note" class="note error" style="display:none;"><b>Profile required.</b> Create and save a profile below before you can access the Dashboard or Matches tabs.</p>
 <p id="oauth-status-note" class="note" style="display:none;"></p>
 
+<p id="load-profile-row" class="link-row" style="display:none;">Have a saved profile on this device? <a href="#" id="load-profile-link">Load my saved profile</a></p>
+<p id="load-profile-error" class="note error" style="display:none;"></p>
 <p class="link-row">Setting up a profile for someone else on this device? <a href="#" id="new-profile-link">New profile / not you?</a></p>
 
 <form id="profile-form">
@@ -144,6 +146,7 @@ localStorage.removeItem("studyUserId");
 savedNote.style.display = "none";
 errorNote.style.display = "none";
 renderCurrentUserBadge();
+refreshLoadProfileVisibility();
 }
 
 Array.prototype.slice.call(document.querySelectorAll(".new-profile-link, #new-profile-link")).forEach(function (link) {
@@ -157,10 +160,7 @@ function dayRows() {
 return Array.prototype.slice.call(document.querySelectorAll(".avail-row"));
 }
 
-function prefillFromStoredProfile() {
-var profile = getStoredProfile();
-if (!profile) return;
-
+function populateFormFromProfile(profile) {
 if (profile.name) document.getElementById("name").value = profile.name;
 if (profile.email) document.getElementById("email").value = profile.email;
 if (profile.course_code) document.getElementById("course_code").value = profile.course_code;
@@ -175,6 +175,38 @@ row.querySelector(".avail-end").value = block[0][1];
 }
 });
 }
+
+var loadProfileRow = document.getElementById("load-profile-row");
+var loadProfileLink = document.getElementById("load-profile-link");
+var loadProfileError = document.getElementById("load-profile-error");
+
+function refreshLoadProfileVisibility() {
+loadProfileRow.style.display = getStoredUserId() ? "block" : "none";
+}
+
+loadProfileLink.addEventListener("click", function (event) {
+event.preventDefault();
+var userId = getStoredUserId();
+if (!userId) return;
+
+loadProfileError.style.display = "none";
+
+getProfile(userId).then(function (result) {
+if (!result.ok) {
+if (result.status === 404) {
+localStorage.removeItem("studyUserId");
+refreshLoadProfileVisibility();
+}
+loadProfileError.textContent = "Could not load saved profile: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+loadProfileError.style.display = "block";
+return;
+}
+populateFormFromProfile(result.data);
+}).catch(function (err) {
+loadProfileError.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + ").";
+loadProfileError.style.display = "block";
+});
+});
 
 function buildAvailability() {
 var availability = {};
@@ -215,6 +247,7 @@ saveProfile(profile);
 savedNote.style.display = "block";
 if (requiredNote) requiredNote.style.display = "none";
 renderCurrentUserBadge();
+refreshLoadProfileVisibility();
 }).catch(function (err) {
 errorNote.textContent = "Could not reach backend at " + API_BASE + " (" + err.message + "). Is python run.py running?";
 errorNote.style.display = "block";
@@ -259,7 +292,7 @@ if (result.data.notion) markConnected("connect-notion", "Notion");
 });
 }
 
-prefillFromStoredProfile();
+refreshLoadProfileVisibility();
 refreshConnectionStatus();
 renderCurrentUserBadge();
 })();

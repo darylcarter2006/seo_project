@@ -153,3 +153,34 @@ def test_connections_unknown_user_returns_404(app):
     client = app.test_client()
     response = client.get("/api/users/999999/connections")
     assert response.status_code == 404
+
+
+def test_get_profile_returns_saved_profile(app):
+    client = app.test_client()
+    payload = {
+        "name": "Henry",
+        "email": "henry@example.edu",
+        "course_code": "CS101",
+        "availability": {"monday": [["14:00", "16:00"]], "wednesday": [["09:00", "11:00"]]},
+        "study_style": "quiet",
+        "pace": 4,
+    }
+    user_id = client.post("/api/users", json=payload).get_json()["user_id"]
+
+    response = client.get(f"/api/users/{user_id}")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "name": "Henry",
+        "email": "henry@example.edu",
+        "course_code": "CS101",
+        "availability": {"monday": [["14:00", "16:00"]], "wednesday": [["09:00", "11:00"]]},
+        "study_style": "quiet",
+        "pace": 4,
+    }
+
+
+def test_get_profile_unknown_user_returns_404(app):
+    client = app.test_client()
+    response = client.get("/api/users/999999")
+    assert response.status_code == 404

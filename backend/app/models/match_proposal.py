@@ -6,6 +6,10 @@ a proposer submits with a match, until the invited partner accepts and
 those details are actually needed to book the Calendar event/Notion page.
 Also holds the resulting google_calendar_event_id once booked, so a later
 cancellation can delete the actual Calendar event, not just flip a status.
+And, once accept-time booking runs, holds its outcome (calendar_status/
+meet_link/notion_status/notes_page_url) so a later re-fetch of the match
+(e.g. GET /api/match/history) doesn't lose that detail -- previously it
+was only ever returned once, in the /respond response itself.
 
 Deliberately a separate table rather than new columns on Match -- Match's
 schema is owned by Manuel and stays untouched; this is purely additive.
@@ -24,6 +28,10 @@ class MatchProposal(db.Model):
     topic = db.Column(db.String(200), nullable=True)
     notion_parent_page_id = db.Column(db.String(200), nullable=True)
     google_calendar_event_id = db.Column(db.String(200), nullable=True)
+    calendar_status = db.Column(db.String(50), nullable=True)
+    meet_link = db.Column(db.String(500), nullable=True)
+    notion_status = db.Column(db.String(50), nullable=True)
+    notes_page_url = db.Column(db.String(500), nullable=True)
 
     match = db.relationship("Match")
 
