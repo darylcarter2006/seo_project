@@ -94,6 +94,21 @@ def save_booking_result(match_id, calendar_status, meet_link, notion_status, not
     return proposal
 
 
+def set_match_proposal_dismissed(match_id, side):
+    """side: 'a' or 'b' -- marks that participant's dismissal flag on
+    MatchProposal, clearing the match from their own dashboard view
+    without touching the other participant's."""
+    proposal = get_match_proposal(match_id)
+    if not proposal:
+        return None
+    if side == "a":
+        proposal.dismissed_by_user_a = True
+    else:
+        proposal.dismissed_by_user_b = True
+    db.session.commit()
+    return proposal
+
+
 # --- User / supporting persistence ---
 
 def create_user(name, email):

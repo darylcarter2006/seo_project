@@ -420,6 +420,34 @@ line-height: 1.5;
 .match-status.ok { color: var(--high); }
 .match-status.error { color: var(--low); }
 
+.status-badge {
+font-family: 'IBM Plex Mono', monospace;
+font-size: 0.72rem;
+text-transform: uppercase;
+letter-spacing: 0.04em;
+margin: 0 0 4px;
+}
+.status-badge.confirmed { color: var(--high); }
+.status-badge.declined, .status-badge.cancelled { color: var(--low); }
+.status-badge.pending { color: var(--accent); }
+
+.group-card.resolved { opacity: 0.6; }
+.group-card.resolved::before { background: var(--ink-soft); }
+
+.dismiss-btn {
+position: absolute;
+top: 10px;
+right: 12px;
+background: none;
+border: none;
+color: var(--ink-soft);
+font-size: 1.1rem;
+line-height: 1;
+cursor: pointer;
+padding: 2px 6px;
+}
+.dismiss-btn:hover { color: var(--ink); }
+
 .note.ok { border-left-color: var(--high); }
 .note.error { border-left-color: var(--low); }
 

@@ -151,6 +151,30 @@ def test_declining_sets_declined_and_never_calls_calendar_or_notion(
     mock_create_page.assert_not_called()
 
 
+def test_declined_match_stays_visible_in_proposers_sent_list_until_dismissed(app):
+    user, partner = _compatible_pair()
+    match = _propose(user, partner)
+
+    client = app.test_client()
+    client.post(
+        f"/api/match/{match.id}/respond",
+        json={"response": "decline", "responding_user_id": partner.id},
+    )
+
+    sent = client.get(f"/api/match/sent?user_id={user.id}")
+    assert sent.status_code == 200
+    entries = sent.get_json()["sent"]
+    assert len(entries) == 1
+    assert entries[0]["match_id"] == match.id
+    assert entries[0]["status"] == "declined"
+
+    dismiss = client.post(f"/api/match/{match.id}/dismiss", json={"user_id": user.id})
+    assert dismiss.status_code == 200
+
+    sent_after_dismiss = client.get(f"/api/match/sent?user_id={user.id}")
+    assert sent_after_dismiss.get_json()["sent"] == []
+
+
 def test_wrong_responding_user_gets_403(app):
     user, partner = _compatible_pair()
     match = _propose(user, partner)

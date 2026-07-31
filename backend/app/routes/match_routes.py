@@ -34,6 +34,7 @@ from app.services.persistence import (
     get_match_proposal,
     set_match_proposal_event_id,
     save_booking_result,
+    set_match_proposal_dismissed,
     email_domain,
 )
 
@@ -74,21 +75,35 @@ def candidates():
     return jsonify({"candidates": find_best_matches(user, same_school)}), 200
 
 
+def _dismissed_by(proposal, match, user_id):
+    """Whether this user has dismissed this match from their own view --
+    checks the side (a/b) matching user_id, not a single shared flag, so
+    one participant dismissing never hides it for the other."""
+    if not proposal:
+        return False
+    return proposal.dismissed_by_user_a if user_id == match.user_a_id else proposal.dismissed_by_user_b
+
+
 @match_bp.route("/history")
 def history():
     """
     GET /api/match/history?user_id=1
 
-    This user's confirmed matches -- who with, and the score at
-    confirmation time. Only matches that actually went through full
-    acceptance (see /respond) show up here, not just proposed ones.
-    Also includes the Calendar/Notion booking outcome from accept time
-    (pulled back out of MatchProposal, where /respond persists it), so
-    this detail survives a re-fetch instead of only existing in the
-    one-time /respond response.
+    This user's confirmed and cancelled matches -- who with, the score at
+    confirmation time, and the current status, so a cancellation is
+    visible to both participants instead of one side's match silently
+    vanishing from the other's dashboard. Only matches that actually went
+    through full acceptance (see /respond) show up here, not just
+    proposed ones. Also includes the Calendar/Notion booking outcome from
+    accept time (pulled back out of MatchProposal, where /respond
+    persists it), so this detail survives a re-fetch instead of only
+    existing in the one-time /respond response. A match either
+    participant has dismissed (see POST /<match_id>/dismiss) is excluded
+    from their own results only.
     Response:
         {"matches": [{"match_id": 5, "partner_name": "Bob",
          "partner_email": "bob@example.edu", "score": 82.5,
+         "status": "confirmed", "start_time": "...", "end_time": "...",
          "calendar_status": "booked", "meet_link": "...",
          "notion_status": "created", "notes_page_url": "..."}, ...]}
     """
@@ -100,17 +115,22 @@ def history():
     if user is None:
         return jsonify({"error": "user_id must reference an existing user"}), 404
 
-    confirmed = get_matches(user_id=user_id, status="confirmed")
+    relevant = [m for m in get_matches(user_id=user_id) if m.status in ("confirmed", "cancelled")]
     results = []
-    for match in confirmed:
+    for match in relevant:
         partner = match.user_b if match.user_a_id == user_id else match.user_a
         proposal = get_match_proposal(match.id)
+        if _dismissed_by(proposal, match, user_id):
+            continue
         results.append({
             "match_id": match.id,
             "partner_name": partner.name,
             "partner_email": partner.email,
             "score": match.score,
+            "status": match.status,
             "created_at": match.created_at.isoformat(),
+            "start_time": proposal.start_time.isoformat() if proposal else None,
+            "end_time": proposal.end_time.isoformat() if proposal else None,
             "calendar_status": proposal.calendar_status if proposal else None,
             "meet_link": proposal.meet_link if proposal else None,
             "notion_status": proposal.notion_status if proposal else None,
@@ -124,13 +144,15 @@ def pending():
     """
     GET /api/match/pending?user_id=2
 
-    Invites waiting on this user to respond to -- matches where user_id is
-    the invited partner (user_b_id) and status is still "pending". A match
-    this user proposed themselves (where they're user_a) never appears
-    here, even while pending -- it's not waiting on them.
+    Invites waiting on this user to respond to (status "pending"), plus
+    ones they've already declined (status "declined") so declining isn't
+    a silent disappearance -- matches where user_id is the invited partner
+    (user_b_id). A match this user proposed themselves (where they're
+    user_a) never appears here, even while pending -- it's not waiting on
+    them. A dismissed invite (see POST /<match_id>/dismiss) is excluded.
     Response:
         {"pending": [{"match_id": 5, "partner_name": "Alice" (the proposer),
-         "score": 82.5, "created_at": "..."}, ...]}
+         "score": 82.5, "status": "pending", "created_at": "..."}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
     if user_id is None:
@@ -140,13 +162,22 @@ def pending():
     if user is None:
         return jsonify({"error": "user_id must reference an existing user"}), 404
 
-    invites = [m for m in get_matches(user_id=user_id, status="pending") if m.user_b_id == user_id]
-    results = [{
-        "match_id": m.id,
-        "partner_name": m.user_a.name,
-        "score": m.score,
-        "created_at": m.created_at.isoformat(),
-    } for m in invites]
+    invites = [
+        m for m in get_matches(user_id=user_id)
+        if m.user_b_id == user_id and m.status in ("pending", "declined")
+    ]
+    results = []
+    for m in invites:
+        proposal = get_match_proposal(m.id)
+        if _dismissed_by(proposal, m, user_id):
+            continue
+        results.append({
+            "match_id": m.id,
+            "partner_name": m.user_a.name,
+            "score": m.score,
+            "status": m.status,
+            "created_at": m.created_at.isoformat(),
+        })
     return jsonify({"pending": results}), 200
 
 
@@ -156,11 +187,13 @@ def sent():
     GET /api/match/sent?user_id=1
 
     Invites this user proposed that are still waiting on the other person
-    to respond -- matches where user_id is the proposer (user_a_id) and
-    status is still "pending". The mirror image of /pending.
+    to respond (status "pending"), plus ones that got declined (status
+    "declined") so a decline isn't a silent disappearance -- matches where
+    user_id is the proposer (user_a_id). The mirror image of /pending. A
+    dismissed invite (see POST /<match_id>/dismiss) is excluded.
     Response:
         {"sent": [{"match_id": 5, "partner_name": "Bob" (the invited person),
-         "score": 82.5, "created_at": "..."}, ...]}
+         "score": 82.5, "status": "pending", "created_at": "..."}, ...]}
     """
     user_id = request.args.get("user_id", type=int)
     if user_id is None:
@@ -170,13 +203,22 @@ def sent():
     if user is None:
         return jsonify({"error": "user_id must reference an existing user"}), 404
 
-    proposed = [m for m in get_matches(user_id=user_id, status="pending") if m.user_a_id == user_id]
-    results = [{
-        "match_id": m.id,
-        "partner_name": m.user_b.name,
-        "score": m.score,
-        "created_at": m.created_at.isoformat(),
-    } for m in proposed]
+    proposed = [
+        m for m in get_matches(user_id=user_id)
+        if m.user_a_id == user_id and m.status in ("pending", "declined")
+    ]
+    results = []
+    for m in proposed:
+        proposal = get_match_proposal(m.id)
+        if _dismissed_by(proposal, m, user_id):
+            continue
+        results.append({
+            "match_id": m.id,
+            "partner_name": m.user_b.name,
+            "score": m.score,
+            "status": m.status,
+            "created_at": m.created_at.isoformat(),
+        })
     return jsonify({"sent": results}), 200
 
 
@@ -428,3 +470,35 @@ def cancel_match(match_id):
         "match_id": match.id,
         "calendar_event_deleted": calendar_event_deleted,
     }), 200
+
+
+@match_bp.route("/<int:match_id>/dismiss", methods=["POST"])
+def dismiss_match(match_id):
+    """
+    POST /api/match/<match_id>/dismiss
+
+    Clears this match from user_id's own dashboard view (pending/sent/
+    history) -- a per-side flag on MatchProposal, so the other
+    participant's view is completely unaffected. Works regardless of the
+    match's current status (pending, confirmed, declined, cancelled);
+    dismissing is just "stop showing me this," not a state transition.
+    Body: {"user_id": 2}
+
+    Response (200): {"status": "dismissed", "match_id": 5}
+
+    404 if match_id doesn't exist. 403 if user_id isn't a participant.
+    """
+    data = request.get_json() or {}
+    user_id = data.get("user_id")
+
+    match = get_match(match_id)
+    if match is None:
+        return jsonify({"error": "match_id not found"}), 404
+
+    if user_id not in (match.user_a_id, match.user_b_id):
+        return jsonify({"error": "only a participant in this match can dismiss it"}), 403
+
+    side = "a" if user_id == match.user_a_id else "b"
+    set_match_proposal_dismissed(match_id, side)
+
+    return jsonify({"status": "dismissed", "match_id": match.id}), 200

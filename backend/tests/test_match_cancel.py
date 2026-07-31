@@ -120,6 +120,36 @@ def test_cancel_non_confirmed_match_returns_400(app):
     assert get_match(match.id).status == "pending"
 
 
+@patch("app.routes.match_routes.GoogleCalendarService.delete_calendar_event")
+@patch("app.routes.match_routes.get_valid_access_token")
+def test_cancelled_match_is_visible_to_both_participants_until_each_dismisses(
+    mock_get_token, mock_delete_event, app
+):
+    match, user, partner = _confirmed_pair()
+    mock_get_token.return_value = None  # no calendar connection needed for this
+
+    client = app.test_client()
+    cancel = client.post(f"/api/match/{match.id}/cancel", json={"user_id": user.id})
+    assert cancel.status_code == 200
+
+    user_history = client.get(f"/api/match/history?user_id={user.id}").get_json()["matches"]
+    partner_history = client.get(f"/api/match/history?user_id={partner.id}").get_json()["matches"]
+    assert len(user_history) == 1 and user_history[0]["status"] == "cancelled"
+    assert len(partner_history) == 1 and partner_history[0]["status"] == "cancelled"
+
+    # user dismisses their own view -- partner's view is untouched
+    dismiss = client.post(f"/api/match/{match.id}/dismiss", json={"user_id": user.id})
+    assert dismiss.status_code == 200
+
+    assert client.get(f"/api/match/history?user_id={user.id}").get_json()["matches"] == []
+    partner_history_after = client.get(f"/api/match/history?user_id={partner.id}").get_json()["matches"]
+    assert len(partner_history_after) == 1
+
+    # partner independently dismisses their own view
+    client.post(f"/api/match/{match.id}/dismiss", json={"user_id": partner.id})
+    assert client.get(f"/api/match/history?user_id={partner.id}").get_json()["matches"] == []
+
+
 def test_cancel_already_cancelled_match_returns_400(app):
     match, user, partner = _confirmed_pair()
     client = app.test_client()

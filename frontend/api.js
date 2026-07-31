@@ -6,6 +6,7 @@
  *   POST /api/match/confirm          -- proposes a pending match, books nothing yet
  *   POST /api/match/<id>/respond     -- invited partner accepts/declines; booking happens on accept
  *   POST /api/match/<id>/cancel      -- either participant cancels a confirmed match
+ *   POST /api/match/<id>/dismiss     -- clears a match from just this user's own view
  *   GET  /api/match/pending?user_id= -- invites waiting on this user to respond to
  *   GET  /api/match/sent?user_id=    -- invites this user sent that are still awaiting a response
  *   GET  /api/match/candidates?user_id=
@@ -189,6 +190,23 @@ async function respondToMatch(matchId, responseValue, respondingUserId) {
 
 async function cancelMatch(matchId, userId) {
     const res = await fetch(API_BASE + "/api/match/" + encodeURIComponent(matchId) + "/cancel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ user_id: userId }),
+    });
+
+    let data = {};
+    try {
+          data = await res.json();
+    } catch (err) {
+          data = {};
+    }
+
+    return { ok: res.ok, status: res.status, data: data };
+}
+
+async function dismissMatch(matchId, userId) {
+    const res = await fetch(API_BASE + "/api/match/" + encodeURIComponent(matchId) + "/dismiss", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ user_id: userId }),

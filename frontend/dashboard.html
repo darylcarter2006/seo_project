@@ -32,7 +32,7 @@ window.location.href = "profile.html?required=1";
 <div class="panel">
 <section class="screen active">
 <p class="panel-title">Your groups</p>
-<p class="panel-sub">Every confirmed study session you've scheduled with a match.</p>
+<p class="panel-sub">Every study session you've scheduled with a match, confirmed or cancelled.</p>
 
 <p id="backend-status" class="note">Checking backend connection…</p>
 
@@ -87,22 +87,62 @@ el.className = "note error";
 var userId = getStoredUserId();
 if (!userId) return;
 
+function maybeAddDismissButton(card, match, userId) {
+var isPastDueConfirmed = match.status === "confirmed" && match.end_time && new Date(match.end_time) < new Date();
+if (match.status !== "cancelled" && match.status !== "declined" && !isPastDueConfirmed) return;
+
+var btn = document.createElement("button");
+btn.type = "button";
+btn.className = "dismiss-btn";
+btn.setAttribute("aria-label", "Dismiss");
+btn.textContent = "×";
+
+var errorNote = document.createElement("p");
+errorNote.className = "match-status error";
+errorNote.style.display = "none";
+
+btn.addEventListener("click", function () {
+btn.disabled = true;
+dismissMatch(match.match_id, userId).then(function (result) {
+if (!result.ok) {
+errorNote.textContent = "Error: " + (result.data && result.data.error ? result.data.error : "HTTP " + result.status);
+errorNote.style.display = "block";
+btn.disabled = false;
+return;
+}
+card.remove();
+}).catch(function (err) {
+errorNote.textContent = "Could not reach backend (" + err.message + ").";
+errorNote.style.display = "block";
+btn.disabled = false;
+});
+});
+
+card.appendChild(btn);
+var info = card.querySelector(".group-info");
+if (info) info.appendChild(errorNote);
+}
+
 var pendingLoading = document.getElementById("pending-loading");
 var pendingEmpty = document.getElementById("pending-empty");
 var pendingList = document.getElementById("pending-list");
 
 function renderPendingCard(invite) {
 var card = document.createElement("div");
-card.className = "group-card pending";
+card.className = "group-card pending" + (invite.status === "declined" ? " resolved" : "");
+
+var statusLabel = invite.status === "declined" ? "Declined" : "Pending";
+var statusClass = invite.status === "declined" ? "declined" : "pending";
+var actionsHtml = invite.status === "pending"
+? '<div class="pending-actions"><button type="button" class="btn-secondary accept-btn">Accept</button><button type="button" class="btn-secondary decline-btn">Decline</button></div>'
+: '';
 
 card.innerHTML =
 '<div class="group-info">' +
 '<p class="group-name">Invite from ' + invite.partner_name + '</p>' +
+'<p class="status-badge ' + statusClass + '">' + statusLabel + '</p>' +
 '<p class="group-meta">Match score ' + Math.round(invite.score) + '%</p>' +
-'<div class="pending-actions">' +
-'<button type="button" class="btn-secondary accept-btn">Accept</button>' +
-'<button type="button" class="btn-secondary decline-btn">Decline</button>' +
-'</div>' +
+actionsHtml +
 '<p class="match-status"></p>' +
 '</div>';
 
@@ -124,7 +164,14 @@ return;
 }
 
 if (responseValue === "decline") {
-card.remove();
+invite.status = "declined";
+card.classList.add("resolved");
+var badge = card.querySelector(".status-badge");
+badge.textContent = "Declined";
+badge.className = "status-badge declined";
+status.textContent = "";
+card.querySelector(".pending-actions").style.display = "none";
+maybeAddDismissButton(card, invite, userId);
 return;
 }
 
@@ -146,8 +193,12 @@ card.querySelector(".decline-btn").disabled = false;
 });
 }
 
+if (invite.status === "pending") {
 card.querySelector(".accept-btn").addEventListener("click", function () { respond("accept"); });
 card.querySelector(".decline-btn").addEventListener("click", function () { respond("decline"); });
+}
+
+maybeAddDismissButton(card, invite, userId);
 
 return card;
 }
@@ -182,14 +233,23 @@ var sentList = document.getElementById("sent-list");
 
 function renderSentCard(invite) {
 var card = document.createElement("div");
-card.className = "group-card pending";
+card.className = "group-card pending" + (invite.status === "declined" ? " resolved" : "");
+
+var statusLabel = invite.status === "declined" ? "Declined" : "Pending";
+var statusClass = invite.status === "declined" ? "declined" : "pending";
+var message = invite.status === "declined"
+? invite.partner_name + " declined this invite."
+: "Waiting for " + invite.partner_name + " to respond.";
 
 card.innerHTML =
 '<div class="group-info">' +
 '<p class="group-name">Invite to ' + invite.partner_name + '</p>' +
+'<p class="status-badge ' + statusClass + '">' + statusLabel + '</p>' +
 '<p class="group-meta">Match score ' + Math.round(invite.score) + '%</p>' +
-'<p class="match-status">Waiting for ' + invite.partner_name + ' to respond.</p>' +
+'<p class="match-status">' + message + '</p>' +
 '</div>';
+
+maybeAddDismissButton(card, invite, userId);
 
 return card;
 }
@@ -225,35 +285,43 @@ var list = document.getElementById("group-list");
 
 function renderGroupCard(match, index) {
 var card = document.createElement("div");
-card.className = "group-card " + ACCENTS[index % ACCENTS.length];
+var isCancelled = match.status === "cancelled";
+card.className = "group-card " + (isCancelled ? "resolved" : ACCENTS[index % ACCENTS.length]);
 
 var when = new Date(match.created_at).toLocaleString(undefined, {
 month: "short", day: "numeric", hour: "numeric", minute: "2-digit"
 });
 
+var statusLabel = isCancelled ? "Cancelled" : "Confirmed";
+var statusClass = isCancelled ? "cancelled" : "confirmed";
+
 var extras = '';
-if (match.meet_link) {
+if (!isCancelled && match.meet_link) {
 extras += '<p class="group-meta"><a href="' + match.meet_link + '" target="_blank" rel="noopener">Join Google Meet</a></p>';
 }
-if (match.notes_page_url) {
+if (!isCancelled && match.notes_page_url) {
 extras += '<p class="group-meta"><a href="' + match.notes_page_url + '" target="_blank" rel="noopener">Shared notes (Notion)</a></p>';
 }
+
+var actionsHtml = isCancelled
+? ''
+: '<div class="pending-actions"><button type="button" class="btn-secondary cancel-btn">Cancel</button></div>';
 
 card.innerHTML =
 '<div class="group-info">' +
 '<p class="group-name">Study session with ' + match.partner_name + '</p>' +
+'<p class="status-badge ' + statusClass + '">' + statusLabel + '</p>' +
 '<p class="group-meta">Confirmed ' + when + ' &nbsp;·&nbsp; match score ' + Math.round(match.score) + '%</p>' +
 '<p class="group-meta">' + match.partner_email + '</p>' +
 extras +
-'<div class="pending-actions">' +
-'<button type="button" class="btn-secondary cancel-btn">Cancel</button>' +
-'</div>' +
+actionsHtml +
 '<p class="match-status"></p>' +
 '</div>';
 
 var status = card.querySelector(".match-status");
 var cancelBtn = card.querySelector(".cancel-btn");
 
+if (cancelBtn) {
 cancelBtn.addEventListener("click", function () {
 cancelBtn.disabled = true;
 status.textContent = "Cancelling...";
@@ -266,13 +334,24 @@ status.className = "match-status error";
 cancelBtn.disabled = false;
 return;
 }
-card.remove();
+match.status = "cancelled";
+card.classList.remove(ACCENTS[index % ACCENTS.length]);
+card.classList.add("resolved");
+var badge = card.querySelector(".status-badge");
+badge.textContent = "Cancelled";
+badge.className = "status-badge cancelled";
+status.textContent = "";
+card.querySelector(".pending-actions").style.display = "none";
+maybeAddDismissButton(card, match, userId);
 }).catch(function (err) {
 status.textContent = "Could not reach backend (" + err.message + ").";
 status.className = "match-status error";
 cancelBtn.disabled = false;
 });
 });
+}
+
+maybeAddDismissButton(card, match, userId);
 
 return card;
 }

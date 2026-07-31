@@ -10,6 +10,9 @@ And, once accept-time booking runs, holds its outcome (calendar_status/
 meet_link/notion_status/notes_page_url) so a later re-fetch of the match
 (e.g. GET /api/match/history) doesn't lose that detail -- previously it
 was only ever returned once, in the /respond response itself.
+Also tracks per-side dismissal (dismissed_by_user_a/dismissed_by_user_b)
+so each participant can independently clear a resolved match from their
+own dashboard without affecting the other's view.
 
 Deliberately a separate table rather than new columns on Match -- Match's
 schema is owned by Manuel and stays untouched; this is purely additive.
@@ -32,6 +35,8 @@ class MatchProposal(db.Model):
     meet_link = db.Column(db.String(500), nullable=True)
     notion_status = db.Column(db.String(50), nullable=True)
     notes_page_url = db.Column(db.String(500), nullable=True)
+    dismissed_by_user_a = db.Column(db.Boolean, nullable=False, default=False)
+    dismissed_by_user_b = db.Column(db.Boolean, nullable=False, default=False)
 
     match = db.relationship("Match")
 
