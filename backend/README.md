@@ -62,13 +62,14 @@ app/
 run.py                       # entry point — python run.py
 ```
 
-The frontend (`../profile.html`, `../dashboard.html`, `../matches.html`,
-`../api.js`, `../styles.css`) is static HTML with no build step. It's
-cross-origin from this API (opened via `file://` or a separate static
-server), so `app/__init__.py` sets permissive dev-only CORS headers
-(`Access-Control-Allow-Origin: *`) — every request already carries an
-explicit `user_id` rather than relying on cookies, so this doesn't expose
-anything a same-origin request wouldn't. Not meant for production.
+The frontend (`../frontend/profile.html`, `../frontend/dashboard.html`,
+`../frontend/matches.html`, `../frontend/api.js`, `../frontend/styles.css`)
+is static HTML with no build step. It's cross-origin from this API (opened
+via `file://` or a separate static server), so `app/__init__.py` sets
+permissive dev-only CORS headers (`Access-Control-Allow-Origin: *`) —
+every request already carries an explicit `user_id` rather than relying
+on cookies, so this doesn't expose anything a same-origin request
+wouldn't. Not meant for production.
 
 The database schema (`User`/`Course`/`Availability`/`Preference`/`Match`) and
 the compatibility scoring algorithm (`scoring.py`/`ranking.py`/
@@ -303,8 +304,8 @@ paths (succeeds, fails, no stored event id) and the non-participant 403.
 
 Manual check, full 3-tab flow: run `python -m app.database.seed` to get demo
 users in place, then `python run.py`, then serve the frontend statically
-from the repo root (e.g. `python -m http.server 8000`) and open
-`http://localhost:8000/profile.html` — create a profile with an
+from the `frontend/` directory (e.g. `cd ../frontend && python -m http.server 8000`)
+and open `http://localhost:8000/profile.html` — create a profile with an
 `@example.edu` email so it's visible to the seeded demo users, or just log
 in as one of them directly. The Matches tab fetches real (same-school)
 candidates (with actual overlap windows) from `/api/match/candidates`;
