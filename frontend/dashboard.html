@@ -301,6 +301,7 @@ extras += '<p class="group-meta"><a href="' + match.meet_link + '" target="_blan
 }
 if (!isCancelled && match.notes_page_url) {
 extras += '<p class="group-meta"><a href="' + match.notes_page_url + '" target="_blank" rel="noopener">Shared notes (Notion)</a></p>';
+extras += '<p class="field-hint">Link visible to both — actual access depends on the proposer\'s Notion sharing settings.</p>';
 }
 
 var actionsHtml = isCancelled

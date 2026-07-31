@@ -101,6 +101,12 @@
 
 <button type="button" class="btn-oauth" id="connect-google"><span class="dot" style="background:#4285F4"></span> Connect Google Calendar</button>
 <button type="button" class="btn-oauth" id="connect-notion"><span class="dot" style="background:#000000"></span> Connect Notion</button>
+
+<div class="field">
+<label for="notion-parent-page">Notion parent page (optional)</label>
+<input type="text" id="notion-parent-page" placeholder="Paste a Notion page ID or URL">
+<p class="field-hint">Open a Notion page you own, click ••• → Connections → add [integration name], then paste that page's ID or link here. This is where your shared study notes will be created.</p>
+</div>
 </section>
 </div>
 
@@ -291,6 +297,14 @@ if (result.data.google_calendar) markConnected("connect-google", "Google Calenda
 if (result.data.notion) markConnected("connect-notion", "Notion");
 });
 }
+
+var notionPageInput = document.getElementById("notion-parent-page");
+notionPageInput.value = getStoredNotionPageId();
+notionPageInput.addEventListener("change", function () {
+var parsed = parseNotionPageId(notionPageInput.value);
+notionPageInput.value = parsed;
+saveNotionPageId(parsed);
+});
 
 refreshLoadProfileVisibility();
 refreshConnectionStatus();

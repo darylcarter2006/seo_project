@@ -285,6 +285,33 @@ Same "don't touch `Match`'s schema" reasoning as everything else on
 `MatchProposal` — this used to only exist in the one-time `/respond`
 response and was lost on any later re-fetch.
 
+## Known limitation: "shared" Notion notes aren't actually shared access
+
+`notion_service.create_shared_page()` creates the study-notes page inside
+the **proposer's own Notion workspace**, using only their OAuth token
+(`parent_page_id` has to be a page they personally own and connected the
+integration to — Notion requires a parent). Both participants get shown
+the resulting `notes_page_url` on their Dashboard, but that's just a
+link — it does **not** mean the invited partner has been granted access.
+
+We checked developers.notion.com directly before deciding this was worth
+a real fix vs. a documented limitation: **the public Notion API has no
+endpoint to programmatically add a collaborator/guest to a page, share a
+page by email, invite a non-workspace-member, or make a page public.**
+The Users API is read-only (`GET /v1/users`, `GET /v1/users/me` — no
+create/invite operations), and the one provisioning mechanism that does
+exist, SCIM, is Enterprise-plan-only workspace user provisioning, not
+page-level access granting, and isn't a fit here regardless.
+
+So "shared" currently means: the page is created once, in the proposer's
+workspace, and the same link is surfaced to both people. Whether the
+invited partner can actually open it depends entirely on the proposer's
+own manual Notion sharing settings for that parent page (e.g. "Share to
+web," or explicitly inviting the partner's Notion account by hand) —
+something this app has no way to set on their behalf. The Dashboard link
+now says as much (`frontend/dashboard.html`) instead of implying
+guaranteed shared access.
+
 ## Testing
 
 ```bash

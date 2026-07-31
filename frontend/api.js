@@ -22,6 +22,7 @@
 const API_BASE = "http://localhost:5000";
 const PROFILE_STORAGE_KEY = "studyProfile";
 const USER_ID_STORAGE_KEY = "studyUserId";
+const NOTION_PAGE_ID_STORAGE_KEY = "studyNotionPageId";
 
 function getStoredProfile() {
     try {
@@ -51,6 +52,31 @@ function getStoredUserId() {
 
 function saveUserId(userId) {
     localStorage.setItem(USER_ID_STORAGE_KEY, String(userId));
+}
+
+function getStoredNotionPageId() {
+    return localStorage.getItem(NOTION_PAGE_ID_STORAGE_KEY) || "";
+}
+
+function saveNotionPageId(id) {
+    if (id) {
+        localStorage.setItem(NOTION_PAGE_ID_STORAGE_KEY, id);
+    } else {
+        localStorage.removeItem(NOTION_PAGE_ID_STORAGE_KEY);
+    }
+}
+
+function parseNotionPageId(input) {
+    // Accepts either a raw page id (dashed or not) or a full Notion page
+    // URL -- stripping everything but hex digits and taking the trailing
+    // 32 survives both shapes, since a URL's id segment is always the
+    // last 32 hex characters in the slug.
+    const trimmed = (input || "").trim();
+    if (!trimmed) return "";
+    const withoutQuery = trimmed.split(/[?#]/)[0];
+    const hexOnly = withoutQuery.replace(/[^0-9a-fA-F]/g, "");
+    if (hexOnly.length >= 32) return hexOnly.slice(-32);
+    return trimmed; // not a recognizable shape -- pass through, let Notion's API be the final validator
 }
 
 function googleLoginUrl(userId) {

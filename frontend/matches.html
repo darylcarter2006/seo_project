@@ -147,6 +147,11 @@ end_time: new Date(endVal).toISOString(),
 topic: card.getAttribute("data-topic")
 };
 
+var storedNotionPageId = getStoredNotionPageId();
+if (storedNotionPageId) {
+payload.notion_parent_page_id = storedNotionPageId;
+}
+
 status.textContent = "Sending invite...";
 status.className = "match-status";
 
