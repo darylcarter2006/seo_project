@@ -1,6 +1,6 @@
 /**
  * api.js
- * Shared helper for talking to the Study Group Matcher backend.
+ * Shared helper for talking to the StudySync backend.
  * Matches the endpoints implemented on the backend/api branch:
  *   GET  /api/match/ping
  *   POST /api/match/confirm          -- proposes a pending match, books nothing yet
