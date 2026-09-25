@@ -100,7 +100,7 @@ python -m pytest tests -v
 
 ## Known limitations
 
-This is a class-project-scale app, not a production service. There is no real authentication yet, CORS is open for local development, and there is no migrations tool. These are documented in detail in [`backend/README.md`](backend/README.md).
+This is a internship-project-scale app, not a production service. There is no real authentication yet, CORS is open for local development, and there is no migrations tool. These are documented in detail in [`backend/README.md`](backend/README.md).
 
 ## License
 
